@@ -2,19 +2,10 @@
     "version": "2.0.0",
     "tasks": [
       {
-        "label": "Start DynamoDB Local",
-        "type": "docker-compose",
-        "dockerCompose": {
-          "up": {
-            "detached": true,
-            "build": true,
-            "services": ["dynamodb", "dynamodb-admin"]
-          },
-          "files": [
-            "${workspaceFolder}/docker-compose.yml"
-          ]
-        }
+        "label": "Start Firestore Local",
+        "type": "shell",
+        "command": "${workspaceFolder}/scripts/start-local-db.sh",
+        "isBackground": true
       }
     ]
   }
-  
