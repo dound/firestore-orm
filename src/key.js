@@ -15,6 +15,12 @@ class Key {
   }
 }
 
+/**
+ * An array which ensures it has no more than one copy of any key.
+ *
+ * This is useful because key equality cannot be checked with the
+ * built-in equality operator.
+ */
 class UniqueKeyList extends Array {
   constructor (...keys) {
     super(...keys)
