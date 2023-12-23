@@ -56,8 +56,8 @@ function setup (firestoreClient) {
     Transaction
   ]
   clsWithDBAccess.forEach(Cls => {
-    Cls.documentClient = documentClient
-    Cls.prototype.documentClient = documentClient
+    Cls.firestoreClient = firestoreClient
+    Cls.prototype.firestoreClient = firestoreClient
   })
 
   const exportAsClass = {
