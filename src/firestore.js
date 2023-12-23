@@ -219,42 +219,20 @@ function makeCreateResourceFunc (dynamoDB, autoscaling) {
   }
 }
 
-/* istanbul ignore next */
-const DefaultConfig = {
-  autoscalingClient: undefined,
-  dynamoDBClient: undefined,
-  dynamoDBDocumentClient: undefined,
-  documentClientWithoutDAX: undefined
-}
-
 /**
- * @module dynamodb
+ * @module firestore
  */
 
 /**
- * Setup the DynamoDB library before returning symbols clients can use.
+ * Setup the Firestore library before returning symbols clients can use.
  *
- * @param {Object} [config] Configurations for the library
- * @param {Object} [config.dynamoDBClient=undefined] AWS DynamoDB Client used
- *   to manage table resources. Required when createResources is used.
- * @param {String} [config.dynamoDBDocumentClient] AWS DynamoDB document client
- *   used to interact with db items.
- * @param {String} [config.documentClientWithoutDAX=undefined] Another instance of
- *   AWS DynamoDB document client without DAX integration.
- * @param {Object} [config.autoscalingClient=undefined] AWS Application
- *   AutoScaling client used to provision auto scaling rules on DB tables.
+ * @param {Object} [firestoreClient] client to interact with db items; from
+ *   firebase/app::initializeApp
  * @returns {Object} Symbols that clients of this library can use.
  * @private
  */
-function setup (config) {
-  config = loadOptionDefaults(config, DefaultConfig)
-
-  Model.createResources = makeCreateResourceFunc(
-    config.dynamoDBClient, config.autoscalingClient)
-
+function setup (firestoreClient) {
   // Make DynamoDB document clients available to these classes
-  const documentClient = config.dynamoDBDocumentClient
-  const documentClientWithoutDAX = config.documentClientWithoutDAX
   const clsWithDBAccess = [
     __WriteBatcher,
     Model,
@@ -266,8 +244,6 @@ function setup (config) {
     Cls.dbClient = config.dynamoDBClient
     Cls.documentClient = documentClient
     Cls.prototype.documentClient = documentClient
-    Cls.documentClientWithoutDAX = documentClientWithoutDAX
-    Cls.prototype.documentClientWithoutDAX = documentClientWithoutDAX
   })
 
   const exportAsClass = {

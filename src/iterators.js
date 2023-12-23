@@ -145,10 +145,7 @@ class __DBIterator {
       params.ExclusiveStartKey = nextToken
     }
     const method = this.constructor.METHOD
-    let client = this.documentClient
-    if (this.bypassCache) {
-      client = this.documentClientWithoutDAX
-    }
+    const client = this.documentClient
     const result = await client[method](params).promise()
       .catch(
         // istanbul ignore next
@@ -237,9 +234,7 @@ class Scan extends __DBIterator {
    * @property {Boolean} [params.options.inconsistentRead=false] When true,
    *   a strongly consistent read is performed.
    *   Note: Consistent read(inconsistentRead=false) only available when query
-   *   or scan is performed on Model or LocalSecondaryIndex. To retrieve more
-   *   recent results when scanning GlobalSecondaryIndex, enabling
-   *   `bypassCache` instead.
+   *   or scan is performed on Model or LocalSecondaryIndex.
    * @property {Number} [params.options.shardIndex=undefined] Only available in
    *   scan. Distributed scan is supported by dynamodb, where multiple machines
    *   can scan non-overlapping sections of the database in parallel, boosting
@@ -250,10 +245,6 @@ class Scan extends __DBIterator {
    *   can scan non-overlapping sections of the database in parallel, boosting
    *   the throughput of a database scan. ShardCount controls the number of
    *   shards in a distributed scan.
-   * @property {Boolean} [params.options.bypassCache=false] DAX stores `Scan`
-   *   and `Query` request results in its query cache, and the cache is not
-   *   invalidated by DynamoDB updates. Set this to true to skip the DAX cache
-   *   for more up-to-date results.
    */
   constructor ({
     ModelCls,
@@ -262,7 +253,6 @@ class Scan extends __DBIterator {
   }) {
     Scan.__assertValidInputs(options)
     options = loadOptionDefaults(options, {
-      bypassCache: false,
       inconsistentRead: options.index !== undefined,
       shardCount: undefined,
       shardIndex: undefined,
@@ -303,13 +293,7 @@ class Query extends __DBIterator {
    * @property {Boolean} [params.options.inconsistentRead=false] When true,
    *   a strongly consistent read is performed.
    *   Note: Consistent read(inconsistentRead=false) only available when query
-   *   or scan is performed on Model or LocalSecondaryIndex. To retrieve more
-   *   recent results when scanning GlobalSecondaryIndex, enabling
-   *   `bypassCache` instead.
-   * @property {Boolean} [params.options.bypassCache=false] DAX stores `Scan`
-   *   and `Query` request results in its query cache, and the cache is not
-   *   invalidated by DynamoDB updates. Set this to true to skip the DAX cache
-   *   for more up-to-date results.
+   *   or scan is performed on Model or LocalSecondaryIndex.
    */
   constructor ({
     ModelCls,
@@ -317,7 +301,6 @@ class Query extends __DBIterator {
     options = {}
   }) {
     options = loadOptionDefaults(options, {
-      bypassCache: false,
       allowLazyFilter: false,
       descending: false,
       inconsistentRead: options.index !== undefined,
