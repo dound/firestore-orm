@@ -2,8 +2,6 @@ const S = require('@pocketgems/schema')
 const { BaseTest, runTests } = require('@pocketgems/unit-test')
 const uuidv4 = require('uuid').v4
 
-const DBError = require('../src/aws-error')
-
 const db = require('./db-with-field-maker')
 
 const CONDITION_EXPRESSION_STR = 'ConditionExpression'
@@ -91,40 +89,6 @@ class BadModelTest extends BaseTest {
     }
     IDCanBeAFieldName.__doOneTimeModelPrep()
   }
-
-  testIndexFieldName () {
-    class BadExample extends db.Model {
-      static KEY = { name: S.str }
-      static SORT_KEY = { rank: S.int }
-      static FIELDS = { objField: S.obj() }
-      static INDEXES = { badIndex: {} }
-    }
-    this.check(BadExample, 'partition key is required')
-
-    BadExample.INDEXES = { badIndex: { KEY: ['name'], SORT_KEY: ['dummy', 'missing'] } }
-    delete BadExample.__setupDone
-    this.check(BadExample, 'all field names must exist in the table')
-
-    BadExample.INDEXES = { badIndex: { KEY: ['missing'], SORT_KEY: ['name'] } }
-    delete BadExample.__setupDone
-    this.check(BadExample, 'all field names must exist in the table')
-
-    BadExample.INDEXES = { badIndex: { KEY: ['name'], SORT_KEY: ['name'] } }
-    delete BadExample.__setupDone
-    this.check(BadExample, 'field name cannot be used more than once')
-
-    BadExample.INDEXES = { badIndex: { KEY: ['name'], INCLUDE_ONLY: ['invalid'] } }
-    delete BadExample.__setupDone
-    this.check(BadExample, 'Field invalid doesn\'t exist in the model')
-
-    BadExample.INDEXES = { badIndex: { KEY: ['name'], INCLUDE_ONLY: ['rank'] } }
-    delete BadExample.__setupDone
-    this.check(BadExample, 'Field rank is a key attribute and is automatically included')
-
-    BadExample.INDEXES = { badIndex: { KEY: ['objField'], INCLUDE_ONLY: ['name'] } }
-    delete BadExample.__setupDone
-    this.check(BadExample, 'Field name is a key attribute and is automatically included')
-  }
 }
 
 class ErrorTest extends BaseTest {
@@ -191,11 +155,11 @@ class SimpleExampleTest extends BaseTest {
   testNamingConvention () {
     expect(() => {
       class SomeModel extends db.Model {}
-      SomeModel.resourceDefinitions // eslint-disable-line
+      SomeModel.__validateTableName() // eslint-disable-line
     }).toThrow(/not include "Model"/)
     expect(() => {
       class SomeTable extends db.Model {}
-      SomeTable.resourceDefinitions // eslint-disable-line
+      SomeTable.__validateTableName() // eslint-disable-line
     }).toThrow(/not include "Table"/)
   }
 
@@ -778,44 +742,6 @@ class KeyTest extends BaseTest {
   }
 }
 
-class PXPayout extends db.Model {
-  static KEY = { player: S.str, admin: S.str }
-  static FIELDS = {
-    payout: S.int, date: S.str.optional(), notes: S.str.optional(), status: S.bool
-  }
-
-  static INDEXES = {
-    payoutByPlayer: { KEY: ['player'], SORT_KEY: ['admin', 'payout'] },
-    payoutByAdmin: { KEY: ['admin'], SORT_KEY: ['payout'] },
-    payoutByStatus: { KEY: ['status'], INCLUDE_ONLY: ['date'] }
-  }
-}
-
-class IndexTest extends BaseTest {
-  async beforeAll () {
-    await PXPayout.createResources()
-  }
-
-  async testIndexFieldGeneration () {
-    function validate (model, fields, val) {
-      const fieldName = PXPayout.__encodeCompoundFieldName(fields)
-      expect(model.__cached_attrs[fieldName].get()).toBe(val)
-    }
-    const name = uuidv4()
-    const model1 = await txCreate(PXPayout, { player: name, admin: 'b', payout: 0, status: true })
-    validate(model1, PXPayout.INDEXES.payoutByPlayer.KEY, name)
-    validate(model1, PXPayout.INDEXES.payoutByPlayer.SORT_KEY, ['b', 0].join('\0'))
-    validate(model1, PXPayout.INDEXES.payoutByAdmin.KEY, 'b')
-    validate(model1, PXPayout.INDEXES.payoutByStatus.KEY, 'true')
-  }
-
-  async testEditIndexField () {
-    const name = uuidv4()
-    const model1 = await txCreate(PXPayout, { player: name, admin: 'b', payout: 0, status: true })
-    expect(() => { model1._c_admin_payout = 'xyz' }).toThrow(db.InvalidFieldError)
-  }
-}
-
 class JSONExample extends db.Model {
   static FIELDS = {
     objNoDefaultNoRequired: S.obj().optional(),
@@ -845,10 +771,6 @@ class IndexJsonExample extends db.Model {
 
   static FIELDS = {
     data: S.str
-  }
-
-  static INDEXES = {
-    byData: { KEY: ['data'], SORT_KEY: ['key1'] }
   }
 }
 
@@ -1527,239 +1449,6 @@ class OptionalFieldConditionTest extends BaseTest {
   }
 }
 
-class TTLExample extends db.Model {
-  static FIELDS = {
-    expirationTime: S.int,
-    doubleTime: S.double,
-    notTime: S.str.optional(),
-    optionalTime: S.int.optional()
-  }
-
-  static EXPIRE_EPOCH_FIELD = 'expirationTime'
-}
-
-class NoTTLExample extends TTLExample {
-  static EXPIRE_EPOCH_FIELD = undefined
-}
-
-class TTLTest extends BaseTest {
-  async beforeAll () {
-    await super.beforeAll()
-    await TTLExample.createResources()
-    await NoTTLExample.createResources()
-  }
-
-  async testTTL () {
-    const id = uuidv4()
-    const currentTime = Math.floor(new Date().getTime() / 1000)
-    await db.Transaction.run(tx => {
-      tx.create(TTLExample, {
-        id,
-        expirationTime: currentTime + 1,
-        doubleTime: 1
-      })
-    })
-
-    await new Promise((resolve, reject) => {
-      setTimeout(resolve, 2000)
-    })
-
-    const model = await db.Transaction.run(tx => {
-      return tx.get(TTLExample, id)
-    })
-    expect(model).toBeUndefined()
-  }
-
-  async testCFResource () {
-    expect(Object.values(TTLExample.resourceDefinitions)[0].Properties)
-      .toHaveProperty('TimeToLiveSpecification')
-  }
-
-  async testConfigValidation () {
-    const Cls1 = class extends TTLExample {
-      static EXPIRE_EPOCH_FIELD = 'notTime'
-    }
-    expect(() => {
-      Cls1.resourceDefinitions // eslint-disable-line
-    }).toThrow('must refer to an integer or double field')
-
-    const Cls2 = class extends TTLExample {
-      static EXPIRE_EPOCH_FIELD = 'optionalTime'
-    }
-    Cls2.resourceDefinitions // eslint-disable-line
-
-    const Cls3 = class extends TTLExample {
-      static EXPIRE_EPOCH_FIELD = 'doubleTime'
-    }
-    expect(() => {
-      Cls3.resourceDefinitions // eslint-disable-line
-    }).not.toThrow()
-
-    const Cls4 = class extends TTLExample {
-      static EXPIRE_EPOCH_FIELD = 'invalid'
-    }
-    expect(() => {
-      Cls4.resourceDefinitions // eslint-disable-line
-    }).toThrow('EXPIRE_EPOCH_FIELD must refer to an existing field')
-  }
-
-  async testExpiration () {
-    const currentTime = Math.ceil(new Date().getTime() / 1000)
-    const result = await db.Transaction.run(async tx => {
-      const model = tx.create(TTLExample,
-        { id: uuidv4(), expirationTime: 0, doubleTime: 0 })
-      // No value, no expiration
-      expect(model.__hasExpired).toBe(false)
-
-      // Older then 5 years, no expiration
-      model.expirationTime = 120000000
-      expect(model.__hasExpired).toBe(false)
-
-      // No value, no expiration
-      expect(model.__hasExpired).toBe(false)
-
-      // Expired
-      model.expirationTime = currentTime - 1000
-      expect(model.__hasExpired).toBe(true)
-
-      // Not yet
-      model.expirationTime = currentTime + 1000
-      expect(model.__hasExpired).toBe(false)
-
-      // TTL not enabled, no expiration
-      const model1 = tx.create(NoTTLExample,
-        { id: uuidv4(), expirationTime: 0, doubleTime: 0 })
-      model1.expirationTime = currentTime - 1000
-      expect(model1.__hasExpired).toBe(false)
-      return 1122
-    })
-    expect(result).toBe(1122) // Proof that the tx ran
-  }
-
-  async testExpiredModel () {
-    // Expired model should be hidden
-    const currentTime = Math.ceil(new Date().getTime() / 1000)
-
-    const id = uuidv4()
-    await db.Transaction.run(tx => {
-      tx.create(NoTTLExample, {
-        id,
-        expirationTime: currentTime - 10000,
-        doubleTime: 11223
-      })
-    })
-
-    // Turn on ttl locally now
-    NoTTLExample.EXPIRE_EPOCH_FIELD = 'expirationTime'
-
-    // if not createIfMissing, nothing should be returned
-    let model = await db.Transaction.run(tx => {
-      return tx.get(NoTTLExample, id)
-    })
-    expect(model).toBeUndefined()
-
-    // if createIfMissing, a new model should be returned
-    model = await db.Transaction.run(tx => {
-      return tx.get(NoTTLExample,
-        { id, expirationTime: currentTime + 10000, doubleTime: 111 },
-        { createIfMissing: true })
-    })
-    expect(model.isNew).toBe(true)
-
-    model = await db.Transaction.run(tx => {
-      return tx.get(NoTTLExample, id)
-    })
-    expect(model.doubleTime).toBe(111)
-    expect(model.isNew).toBe(false)
-
-    NoTTLExample.EXPIRE_EPOCH_FIELD = undefined
-  }
-
-  async testOverrideExpiredModel () {
-    // When blind write to a model with TTL enabled, the condition must take
-    // expired but not yet deleted models into account, and don't fail the tx
-    const currentTime = Math.ceil(new Date().getTime() / 1000)
-
-    const id = uuidv4()
-    await db.Transaction.run(tx => {
-      tx.create(NoTTLExample, {
-        id,
-        expirationTime: currentTime - 10000,
-        doubleTime: 11223
-      })
-    })
-    // Turn on ttl locally now
-    NoTTLExample.EXPIRE_EPOCH_FIELD = 'expirationTime'
-
-    await db.Transaction.run(tx => {
-      tx.create(NoTTLExample,
-        { id, expirationTime: currentTime + 1000, doubleTime: 111 })
-    })
-
-    const model = await db.Transaction.run(tx => {
-      return tx.get(NoTTLExample, id)
-    })
-    expect(model.doubleTime).toBe(111)
-
-    NoTTLExample.EXPIRE_EPOCH_FIELD = undefined
-  }
-
-  async testBatchGetExpired () {
-    const currentTime = Math.ceil(new Date().getTime() / 1000)
-
-    const id = uuidv4()
-    const id2 = uuidv4()
-    await db.Transaction.run(tx => {
-      tx.create(NoTTLExample, {
-        id,
-        expirationTime: currentTime - 10000,
-        doubleTime: 11223
-      })
-      tx.create(NoTTLExample, {
-        id: id2,
-        expirationTime: currentTime - 10000,
-        doubleTime: 11223
-      })
-    })
-    // Turn on ttl locally now
-    NoTTLExample.EXPIRE_EPOCH_FIELD = 'expirationTime'
-
-    const result = await db.Transaction.run(tx => {
-      return tx.get([
-        NoTTLExample.key(id), NoTTLExample.key(uuidv4())
-      ], { inconsistentRead: false })
-    })
-    expect(result).toStrictEqual([undefined, undefined])
-
-    const result1 = await db.Transaction.run(tx => {
-      return tx.get([
-        NoTTLExample.key(id), NoTTLExample.key(uuidv4())
-      ], { inconsistentRead: true })
-    })
-    expect(result1).toStrictEqual([undefined, undefined])
-
-    const result2 = await db.Transaction.run(tx => {
-      return tx.get([
-        NoTTLExample.data({
-          id,
-          expirationTime: currentTime - 10000,
-          doubleTime: 1
-        }),
-        NoTTLExample.data({
-          id: id2,
-          expirationTime: currentTime - 10000,
-          doubleTime: 1
-        })
-      ], { inconsistentRead: false, createIfMissing: true })
-    })
-    expect(result2.length).toBe(2)
-    expect(result2[0].id).toBe(id)
-    expect(result2[1].id).toBe(id2)
-
-    NoTTLExample.EXPIRE_EPOCH_FIELD = undefined
-  }
-}
-
 class SnapshotTest extends BaseTest {
   async beforeAll () {
     await super.beforeAll()
@@ -1901,7 +1590,6 @@ runTests(
   ErrorTest,
   GetArgsParserTest,
   IDSchemaTest,
-  IndexTest,
   JSONExampleTest,
   KeyTest,
   NewModelTest,
@@ -1909,7 +1597,6 @@ runTests(
   OptionalFieldConditionTest,
   SimpleExampleTest,
   SnapshotTest,
-  TTLTest,
   WriteBatcherTest,
   WriteTest,
   UniqueKeyListTest

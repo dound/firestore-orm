@@ -12,7 +12,6 @@ const {
   InvalidModelDeletionError,
   InvalidModelUpdateError,
   InvalidParameterError,
-  InvalidIndexError,
   ModelAlreadyExistsError,
   ModelDeletedTwiceError
 } = require('./errors')
@@ -71,29 +70,10 @@ class Model {
     setupKey('_sk', this.constructor.SORT_KEY,
       this.constructor.__keyOrder.sort, vals)
 
-    const indexConfig = this.constructor.INDEXES?.[index]
-    const useProjection = index && indexConfig?.INCLUDE_ONLY
-    const projectedFields = useProjection
-      ? [
-          ...Object.keys(this.constructor.KEY),
-          ...Object.keys(
-            // istanbul ignore next
-            this.constructor.SORT_KEY ?? {}
-          ),
-          ...indexConfig.KEY,
-          ...indexConfig.SORT_KEY ?? [],
-          ...indexConfig.INCLUDE_ONLY
-        ]
-      : undefined
-    const isOmittedFromProjection = (name) => {
-      return projectedFields && !projectedFields.includes(name)
-    }
-
     // add user-defined fields from FIELDS & key components from KEY & SORT_KEY
     let fieldIdx = 0
     for (const [name, opts] of Object.entries(this.constructor._attrs)) {
-      const forceOmission = isOmittedFromProjection(name)
-      this.__addField(fieldIdx++, name, opts, vals, forceOmission)
+      this.__addField(fieldIdx++, name, opts, vals)
     }
 
     for (let field of this.constructor.__compoundFields) {
@@ -117,10 +97,7 @@ class Model {
   async finalize () {
   }
 
-  __addField (idx, name, opts, vals, forceOmission) {
-    if (forceOmission) {
-      opts.optional = true
-    }
+  __addField (idx, name, opts, vals) {
     let valSpecified = Object.hasOwnProperty.call(vals, name)
     let val = vals[name]
     if (!valSpecified) {
@@ -160,16 +137,10 @@ class Model {
     }
     Object.defineProperty(this, name, {
       get: () => {
-        if (forceOmission) {
-          throw new InvalidFieldError(name, 'omitted from projection')
-        }
         const field = getCachedField()
         return field.get()
       },
       set: (val) => {
-        if (forceOmission) {
-          throw new InvalidFieldError(name, 'omitted from projection')
-        }
         const field = getCachedField()
         field.set(val)
       }
@@ -250,24 +221,6 @@ class Model {
       }
     }
 
-    for (const [index, keys] of Object.entries(this.INDEXES)) {
-      if (keys.KEY === undefined) {
-        throw new InvalidIndexError(index, 'partition key is required')
-      }
-      const indexFields = new Set()
-      for (const field of [...keys.KEY, ...(keys.SORT_KEY ?? [])]) {
-        if (field in ret === false) {
-          throw new InvalidIndexError(index,
-            'all field names must exist in the table')
-        }
-        if (indexFields.has(field)) {
-          throw new InvalidIndexError(index,
-            'field name cannot be used more than once')
-        }
-        indexFields.add(field)
-      }
-    }
-
     if (this.EXPIRE_EPOCH_FIELD) {
       const todeaSchema = ret[this.EXPIRE_EPOCH_FIELD]
       if (!todeaSchema) {
@@ -302,36 +255,6 @@ class Model {
       sort: Object.keys(this.SORT_KEY || {}).sort()
     }
     return this.__CACHED_KEY_ORDER
-  }
-
-  static __validateIndexKeys (index, data) {
-    const isFieldOptional = (fields) => {
-      if (fields.some(field => this._attrs[field].optional)) {
-        return true
-      }
-      return false
-    }
-    if (!data.SPARSE) {
-      if (isFieldOptional(data.KEY) || (data.SORT_KEY && isFieldOptional(data.SORT_KEY))) {
-        throw new InvalidIndexError(index, `Can not use optional fields as key.
-        Make it a sparse index to use optional fields`)
-      }
-    }
-    this.__compoundFields.add(data.KEY)
-    if (data.SORT_KEY) {
-      this.__compoundFields.add(data.SORT_KEY)
-    }
-
-    if (data.INCLUDE_ONLY) {
-      for (const field of data.INCLUDE_ONLY) {
-        if (!this._attrs[field]) {
-          throw new InvalidIndexError(index, `Field ${field} doesn't exist in the model`)
-        }
-        if (this.__keyOrder.partition.includes(field) || this.__keyOrder.sort.includes(field)) {
-          throw new InvalidIndexError(index, `Field ${field} is a key attribute and is automatically included`)
-        }
-      }
-    }
   }
 
   static __validateTableName () {
@@ -393,13 +316,6 @@ class Model {
         this.__KEY_COMPONENT_NAMES.add(fieldName)
       }
     }
-    if (this.INDEX_INCLUDE_KEYS) {
-      this.__compoundFields = new Set(
-        [...Object.keys(this.KEY), ...Object.keys(this.SORT_KEY)])
-    }
-    for (const [index, keys] of Object.entries(this.INDEXES)) {
-      this.__validateIndexKeys(index, keys)
-    }
   }
 
   static __useNumericKey (keySchema) {
@@ -439,211 +355,6 @@ class Model {
     return isNumericKey
   }
 
-  static get resourceDefinitions () {
-    this.__doOneTimeModelPrep()
-    // the partition key attribute is always "_id"
-    const keyType = this.__useNumericKey(this.KEY) ? 'N' : 'S'
-    const attrs = [{ AttributeName: '_id', AttributeType: keyType }]
-    const dedupeAttr = new Set(['_id'])
-    const keys = [{ AttributeName: '_id', KeyType: 'HASH' }]
-    const indexes = []
-
-    // if we have a sort key attribute, it is always "_sk"
-    if (this.__keyOrder.sort.length > 0) {
-      const keyType = this.__useNumericKey(this.SORT_KEY) ? 'N' : 'S'
-      attrs.push({ AttributeName: '_sk', AttributeType: keyType })
-      keys.push({ AttributeName: '_sk', KeyType: 'RANGE' })
-      dedupeAttr.add('_sk')
-    }
-
-    if (Object.keys(this.INDEXES).length > 0) {
-      for (const [index, props] of Object.entries(this.INDEXES)) {
-        const keyNames = this.__getKeyNamesForIndex(index)
-        const indexProps = {
-          IndexName: index,
-          KeySchema: [{ AttributeName: keyNames._id, KeyType: 'HASH' }],
-          Projection: { ProjectionType: 'ALL' },
-          ...this.getProvisionedThroughputConfig()
-        }
-        if (props.INCLUDE_ONLY) {
-          if (props.INCLUDE_ONLY.length === 0) {
-            indexProps.Projection.ProjectionType = 'KEYS_ONLY'
-          } else {
-            indexProps.Projection = {
-              ProjectionType: 'INCLUDE',
-              NonKeyAttributes: props.INCLUDE_ONLY
-            }
-          }
-        }
-        if (dedupeAttr.has(keyNames._id) === false) {
-          attrs.push({
-            AttributeName: keyNames._id,
-            AttributeType: this.__useNumericKey(props.KEY) ? 'N' : 'S'
-          })
-          dedupeAttr.add(keyNames._id)
-        }
-
-        if (props.SORT_KEY !== undefined) {
-          indexProps.KeySchema.push({ AttributeName: keyNames._sk, KeyType: 'RANGE' })
-          if (dedupeAttr.has(keyNames._sk) === false) {
-            attrs.push({
-              AttributeName: keyNames._sk,
-              AttributeType: this.__useNumericKey(props.SORT_KEY) ? 'N' : 'S'
-            })
-            dedupeAttr.add(keyNames._sk)
-          }
-        }
-        indexes.push(indexProps)
-      }
-    }
-
-    const properties = {
-      TableName: this.fullTableName,
-      AttributeDefinitions: attrs,
-      KeySchema: keys,
-      BillingMode: {
-        'Fn::If': [
-          'IsProdServerCondition',
-          'PROVISIONED',
-          'PAY_PER_REQUEST'
-        ]
-      },
-      ...this.getProvisionedThroughputConfig()
-    }
-
-    if (indexes.length > 0) {
-      properties.GlobalSecondaryIndexes = indexes
-    }
-
-    if (this.EXPIRE_EPOCH_FIELD) {
-      properties.TimeToLiveSpecification = {
-        AttributeName: this.EXPIRE_EPOCH_FIELD,
-        Enabled: true
-      }
-    }
-
-    return {
-      [this.tableResourceName]: {
-        Type: 'AWS::DynamoDB::Table',
-        DeletionPolicy: 'Retain',
-        Properties: properties
-      },
-      ...this.getTableAutoScalingConfig(),
-      ...this.getIndexesAutoScalingConfig(indexes)
-    }
-  }
-
-  static getProvisionedThroughputConfig () {
-    return {
-      ProvisionedThroughput: {
-        'Fn::If': [
-          'IsProdServerCondition',
-          {
-            ReadCapacityUnits: 1,
-            WriteCapacityUnits: 1
-          },
-          {
-            Ref: 'AWS::NoValue'
-          }
-        ]
-      }
-    }
-  }
-
-  static getTableAutoScalingConfig () {
-    const resourceId = `table/${this.fullTableName}`
-    return this.getAutoScalingConfig(this.tableResourceName, resourceId, 'table')
-  }
-
-  static getIndexesAutoScalingConfig (indexes) {
-    const indexesAutoScalingConfig = {}
-    for (const index of indexes) {
-      const indexName = index.IndexName
-      const resourceId = `table/${this.fullTableName}/index/${indexName}`
-      const indexResourceName = this.tableResourceName + `${indexName[0].toUpperCase()}${indexName.slice(1)}` + 'Index'
-      const config = this.getAutoScalingConfig(indexResourceName, resourceId, 'index')
-      Object.assign(indexesAutoScalingConfig, config)
-    }
-    return indexesAutoScalingConfig
-  }
-
-  static getAutoScalingConfig (resourceName, resourceId, dimension) {
-    const readPolicyName = resourceName + 'ReadScalingPolicy'
-    const readTargetName = resourceName + 'ReadScalableTarget'
-    const writePolicyName = resourceName + 'WriteScalingPolicy'
-    const writeTargetName = resourceName + 'WriteScalableTarget'
-    return {
-      [readPolicyName]: {
-        Type: 'AWS::ApplicationAutoScaling::ScalingPolicy',
-        Condition: 'IsProdServerCondition',
-        Properties: {
-          PolicyName: readPolicyName,
-          PolicyType: 'TargetTrackingScaling',
-          ScalingTargetId: {
-            Ref: readTargetName
-          },
-          TargetTrackingScalingPolicyConfiguration: {
-            TargetValue: 75,
-            ScaleInCooldown: 0,
-            ScaleOutCooldown: 0,
-            PredefinedMetricSpecification: {
-              PredefinedMetricType: 'DynamoDBReadCapacityUtilization'
-            }
-          }
-        }
-      },
-      [readTargetName]: {
-        Type: 'AWS::ApplicationAutoScaling::ScalableTarget',
-        Condition: 'IsProdServerCondition',
-        DependsOn: this.tableResourceName,
-        Properties: {
-          MaxCapacity: 1000,
-          MinCapacity: 1,
-          ResourceId: resourceId,
-          RoleARN: {
-            'Fn::Sub': 'arn:aws:iam::${AWS::AccountId}:role/aws-service-role/dynamodb.application-autoscaling.amazonaws.com/AWSServiceRoleForApplicationAutoScaling_DynamoDBTable' // eslint-disable-line no-template-curly-in-string
-          },
-          ScalableDimension: `dynamodb:${dimension}:ReadCapacityUnits`,
-          ServiceNamespace: 'dynamodb'
-        }
-      },
-      [writePolicyName]: {
-        Type: 'AWS::ApplicationAutoScaling::ScalingPolicy',
-        Condition: 'IsProdServerCondition',
-        Properties: {
-          PolicyName: writePolicyName,
-          PolicyType: 'TargetTrackingScaling',
-          ScalingTargetId: {
-            Ref: writeTargetName
-          },
-          TargetTrackingScalingPolicyConfiguration: {
-            TargetValue: 75,
-            ScaleInCooldown: 0,
-            ScaleOutCooldown: 0,
-            PredefinedMetricSpecification: {
-              PredefinedMetricType: 'DynamoDBWriteCapacityUtilization'
-            }
-          }
-        }
-      },
-      [writeTargetName]: {
-        Type: 'AWS::ApplicationAutoScaling::ScalableTarget',
-        Condition: 'IsProdServerCondition',
-        DependsOn: this.tableResourceName,
-        Properties: {
-          MaxCapacity: 1000,
-          MinCapacity: 1,
-          ResourceId: resourceId,
-          RoleARN: {
-            'Fn::Sub': 'arn:aws:iam::${AWS::AccountId}:role/aws-service-role/dynamodb.application-autoscaling.amazonaws.com/AWSServiceRoleForApplicationAutoScaling_DynamoDBTable' // eslint-disable-line no-template-curly-in-string
-          },
-          ScalableDimension: `dynamodb:${dimension}:WriteCapacityUnits`,
-          ServiceNamespace: 'dynamodb'
-        }
-      }
-    }
-  }
-
   /**
    * Defines the partition key. Every item in the database is uniquely
    * identified by the combination of its partition and sort key. The default
@@ -675,30 +386,6 @@ class Model {
    *   }
    */
   static FIELDS = {}
-
-  /**
-   * Defines the global secondary indexes for the table.
-   * By default there are no secondary indexes.
-   *
-   * Properties are defined as a map from index names to an object
-   * containing the keys for the index
-   * (fields defined in an index key should already exist in the table):
-   * @example
-   *   static INDEXES = {
-   *     index1: { KEY: [field1, field2] }
-   *     index2: { KEY: [field3], SORT_KEY: [field4] }
-   *   }
-   */
-  static INDEXES = {}
-
-  /**
-   * If this is enabled, we will create individual fields internally for
-   * all the field in KEY, SORT_KEY. This will incrase the storage cost but
-   * enable users to use lazy filter on individual key fields.
-   * This works only for querying via indexes, if the key field isn't part
-   * of a key in that index.
-   */
-  static INDEX_INCLUDE_KEYS = false
 
   get _id () {
     return this.__getKey(this.constructor.__keyOrder.partition,
@@ -747,28 +434,6 @@ class Model {
     return this.__encodeCompoundValue(this.__keyOrder.sort, vals, useNumericKey)
   }
 
-  static __getIndexCompoundValue (keys, vals) {
-    if (keys.length === 1 && ['string', 'number'].includes(typeof vals[keys[0]])) {
-      return vals[keys[0]]
-    }
-    const fieldName = this.__encodeCompoundFieldName(keys)
-    if (['_id', '_sk'].includes(fieldName)) {
-      // using model key encoding so use existing logic
-      return this.__encodeCompoundValue(keys, vals, this.__useNumericKey(keys))
-    }
-    return __CompoundField.__encodeValues(keys, vals)
-  }
-
-  static __getIdForIndex (vals, index) {
-    const keys = this.INDEXES[index].KEY.sort()
-    return this.__getIndexCompoundValue(keys, vals)
-  }
-
-  static __getSkForIndex (vals, index) {
-    const keys = this.INDEXES[index].SORT_KEY.sort()
-    return this.__getIndexCompoundValue(keys, vals)
-  }
-
   /**
    * Generate a compound field name given a list of fields.
    * For compound field containing a single field that is not either a PK or SK,
@@ -792,13 +457,6 @@ class Model {
     }
 
     return __CompoundField.__encodeName(fields)
-  }
-
-  static __getKeyNamesForIndex (index) {
-    return {
-      _id: this.__encodeCompoundFieldName(this.INDEXES[index].KEY),
-      _sk: this.__encodeCompoundFieldName(this.INDEXES[index].SORT_KEY ?? [])
-    }
   }
 
   /**

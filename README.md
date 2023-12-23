@@ -9,7 +9,6 @@ high-level abstractions to structure data and prevent race conditions.
   - [Tables](#tables)
     - [Keys](#keys)
     - [Fields](#fields)
-    - [Indexes](#indexes)
     - [Schema Enforcement](#schema-enforcement)
     - [Custom Methods](#custom-methods)
   - [Transactions](#transactions)
@@ -35,13 +34,9 @@ high-level abstractions to structure data and prevent race conditions.
       - [Execution](#execution)
       - [Sorting](#sorting)
       - [Read Consistency](#read-consistency-1)
-      - [Lazy Filter](#lazy-filter)
-      - [Indexes](#indexes-1)
     - [Scan](#scan)
       - [Execution](#execution-1)
-      - [Sharding](#sharding)
       - [Read Consistency](#read-consistency-2)
-      - [Indexes](#indexes-2)
   - [Performance](#performance)
     - [Blind Writes](#blind-writes)
     - [incrementBy()](#incrementby)
@@ -51,21 +46,16 @@ high-level abstractions to structure data and prevent race conditions.
   - [Time To Live](#time-to-live)
   - [Table Creation \& Persistence](#table-creation--persistence)
   - [Sort Keys](#sort-keys)
-  - [Indexes](#indexes-3)
+  - [Indexes](#indexes)
     - [Eventual Consistency](#eventual-consistency)
     - [Creating/Editing Index(es)](#creatingediting-indexes)
-    - [Data Projection](#data-projection)
     - [Cost of Indexing](#cost-of-indexing)
-    - [Limitations](#limitations)
-    - [Lazy Filtering model’s Key/Sort Key](#lazy-filtering-models-keysort-key)
-  - [Overlapping Models](#overlapping-models)
   - [Repeated Reads](#repeated-reads)
   - [Key Collection](#key-collection)
 - [Library Collaborator's Guide](#library-collaborators-guide)
   - [AOL](#aol)
   - [Transactions](#transactions-1)
 - [Appendix](#appendix)
-  - [Unsupported DynamoDB Features](#unsupported-dynamodb-features)
 
 
 # Core Concepts
@@ -227,49 +217,6 @@ class ComplexFieldsExample extends db.Model {
         'immutableInt is immutable so value cannot be changed')
 ```
 
-### Indexes
-Indexes can optimize some DynamoDB data access patterns like filtering and sorting. Indexes are automatically updated on saving a row, but they are **eventually consistent**.
-You can read more about DynamoDB GlobalSecondaryIndex [here](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/GSI.html).
-
-You can define a new index like this inside your model class:
-```javascript <!-- embed:./test/unit-test-model.js:scope:class PXPayout -->
-class PXPayout extends db.Model {
-  static KEY = { player: S.str, admin: S.str }
-  static FIELDS = {
-    payout: S.int, date: S.str.optional(), notes: S.str.optional(), status: S.bool
-  }
-
-  static INDEXES = {
-    payoutByPlayer: { KEY: ['player'], SORT_KEY: ['admin', 'payout'] },
-    payoutByAdmin: { KEY: ['admin'], SORT_KEY: ['payout'] },
-    payoutByStatus: { KEY: ['status'], INCLUDE_ONLY: ['date'] }
-  }
-}
-```
-
-An index can be useful in scenarios like:
-- Lookup rows by something other than their KEY. e.g. In the above `PXPayout`, we can use `payoutByAdmin` to find all payouts given out by an admin.
-- Sort/Filter multiple ways efficiently. Let's take a look at the  `GuildMetadata` model below.
-  - We can use `guildByLeague` to find all the teams in a specific guild and sort them by rank.
-  - We can use `guildByRank` to find all the teams that's ranked 1 sorted by league name.
-```javascript <!-- embed:./test/unit-test-model.js:section:GuildMetadataStart:GuildMetadataEnd -->
-    const GuildMetadata = class extends db.Model {
-      static KEY = { name: S.str }
-      static FIELDS = { league: S.str, rank: S.int }
-      static INDEXES = {
-        guildByLeague: { KEY: ['league'], SORT_KEY: ['rank'] },
-        guildByRank: { KEY: ['rank'], SORT_KEY: ['league'] }
-      }
-    }
-```
-
-
-**KEYS**
-- Like tables, indexes must have a `KEY` and may have a `SORT_KEY`.
-- You can use one or more columns in the table to define the KEY /  SORT_KEY for an index. Columns can be from the original table's KEY / SORT_KEY / FIELDS
-- Index rows don’t need to have a unique `KEY + SORT_KEY` value.
-
-  e.g., In the `PXPayout` table's `payoutByAdmin` index, we can have a single admin issue the same payout to multiple people. This will create a row for each of those payouts in this index with the same key and sort key (but other values may differ).
 
 ### Schema Enforcement
 A model's schema (i.e., the structure of its data) is enforced by this library
@@ -717,56 +664,9 @@ adding filters and execute the query.
 ```
 
 #### Filter
-Queries require equality filters on every partition key, otherwise when a
-query is executed an exception will result. Consider a model with 2 partition
-keys `id1` and `id2`:
-```javascript <!-- embed:./test/unit-test-iterators.js:scope:IteratorExample -->
-class IteratorExample extends db.Model {
-  static KEY = {
-    id1: S.str,
-    id2: S.int
-  }
-
-  static SORT_KEY = {
-    sk1: S.str,
-    sk2: S.str
-  }
-
-  static FIELDS = {
-    field1: S.str,
-    field2: S.str,
-    field3: S.arr(S.obj({ a: S.int })).optional()
-  }
-
-  static INDEXES = {
-    index1: { KEY: ['id1', 'id2'], SORT_KEY: ['field1'] },
-    index2: { KEY: ['id1', 'sk1'], SORT_KEY: ['field1', 'field2'] },
-    index3: { KEY: ['field3'], SPARSE: true },
-    index4: { KEY: ['field1'] }
-  }
-}
-```
-
-The required equality filters are added with the following code
-```javascript <!-- embed:./test/unit-test-iterators.js:section:example equality filter start:example equality filter end -->
-    query.id1('xyz')
-    query.id2(321)
-```
-
-Optionally, sort keys can be filtered with matching conditions below:
-```javascript
-query.sk1('==', '123') // sk1 equals '123'
-query.sk1('>', '123') // sk1 is larger than '123'
-query.sk1('>=', '123') // sk1 is larger than or equal to '123'
-query.sk1('<', '123') // sk1 is smaller than '123'
-query.sk1('<=', '123') // sk1 is smaller than or equal to '123'
-query.sk1('prefix', '123') // sk1 starts with 123
-query.sk1('between', '123', '234') // sk1 is between '123' and '234
-```
-
 Filter expressions support method chaining
 ```javascript <!-- embed:./test/unit-test-iterators.js:section:example filter chaining start:example filter chaining end -->
-    query1.id1('xyz').id2(123).sk1('>', '1')
+    query1.field1('xyz').field2(123).field3('>', '1')
 ```
 
 #### Execution
@@ -831,58 +731,6 @@ from query. Disabling strong consistency can improve performance.
       query.id1('123').id2(123)
 ```
 
-#### Lazy Filter
-The term "lazy filter" comes from the fact that filters on non-key fields are
-applied after rows are read from the database and before they're returned to
-the machine running application code. Lazy filter is disallowed by default
-since they lead to increased cost (additional data is read from the database)
-compared to querying against purposefully setup Indexes.
-
-However, lazy filters are still supported to allow flexibility in constructing
-queries while avoiding setting up many dedicated Indexes. To allow lazy
-filters, the query handle must be created with `allowLazyFilter` option turned
-on.
-```javascript <!-- embed:./test/unit-test-iterators.js:section:example lazyFilter start:example lazyFilter end -->
-      const query = tx.query(QueryExample, { allowLazyFilter: true })
-```
-
-Lazy filters support all filter conditions except "prefix", and add support
-for inequality condition "!=".
-
-#### Indexes
-Querying an index uses the same syntax as querying a table.  Once you define the index in your query, you need to define an equality filter on each of the `KEY` columns defined in your index.
-
-```javascript <!-- embed:./test/unit-test-model.js:scope:class PXPayout -->
-class PXPayout extends db.Model {
-  static KEY = { player: S.str, admin: S.str }
-  static FIELDS = {
-    payout: S.int, date: S.str.optional(), notes: S.str.optional(), status: S.bool
-  }
-
-  static INDEXES = {
-    payoutByPlayer: { KEY: ['player'], SORT_KEY: ['admin', 'payout'] },
-    payoutByAdmin: { KEY: ['admin'], SORT_KEY: ['payout'] },
-    payoutByStatus: { KEY: ['status'], INCLUDE_ONLY: ['date'] }
-  }
-}
-```
-In the above example, we can query to find all the payouts done by an admin by writing a query like:
-```javascript
-await tx.query(PXPayout, { index: 'payoutByAdmin' }).admin('someAdmin').fetch()
-```
-
-You can optionally add filters/sorting on the index’s `SORT_KEY` as well. Let's add a filter to our last query to show only payouts above a certain threshold.
-
-```javascript
-await tx.query(PXPayout, { index: 'payoutByAdmin' }).admin('someAdmin').payout('>=', '100').fetch()
-```
-
-You can add additional filters on the rest of the columns with [Lazy Filter](#lazy-filter) (_however these filters are performed after a query is run and is less performant in general_)
-
-
-**NOTE**: Querying an index supports only eventual consistent data. You cannot do `{ inconsistentRead: false }` while querying an index.
-
-
 ### Scan
 A scan accesses all rows in a table one by one. Transaction context
 `tx` provides `scan` method that returns a handle for conducting a scan
@@ -907,24 +755,6 @@ A scan is executed using paginator and generator APIs similar to [query's execut
         }
 ```
 
-#### Sharding
-A sharded scan enables multiple machines to scan through non-overlapping
-sections of an entire table in parallel. It can greatly reduce the overall
-processing time of a scan. Sharded scan is enabled by 2 options `shardIndex`
-and `shardCount`.
-- shardCount specifies the number of sections to split a table into
-- shardIndex specifies which section of a table to scan through.
-
-For example, a sharded scan using 2 machines will need to set `shardCount` to 2
-and use 0 as the `shardIndex` on one machine and use 1 as the `shardIndex` on
-the other.
-```javascript <!-- embed:./test/unit-test-iterators.js:scope:testSharding:Transaction -->
-    await db.Transaction.run(async tx => {
-      const scan = tx.scan(ScanExample, { shardCount: 2, shardIndex: 0 })
-      return scan.fetch(10)
-    })
-```
-
 #### Read Consistency
 By default, a scan returns strongly consistent data. Disabling strong
 consistency can improve performance and reduce cost by 50%.
@@ -933,13 +763,6 @@ consistency can improve performance and reduce cost by 50%.
       const scan = tx.scan(ScanExample, { inconsistentRead: true })
       return scan.__setupParams().ConsistentRead
     })
-```
-
-
-#### Indexes
-Scanning an index uses the same syntax as scanning a table. You only need to define the index to scan using the index.
-```javascript
-await tx.scan(SupportModel, { index: 'indexByReport' }).fetch()
 ```
 
 
@@ -1196,7 +1019,7 @@ be used together. It should not be used for overly large or unrelated data.
 
 ## Indexes
 
-Indexes can optimize some DynamoDB data access patterns like filtering and sorting. Indexes are automatically kept up to date but are only eventually consistent.
+Indexes can optimize some data access patterns like filtering and sorting. Indexes are automatically kept up to date but are only eventually consistent.
 
 
 ### Eventual Consistency
@@ -1207,151 +1030,22 @@ Indexes are eventually consistent. This means that when a database row is update
     const GuildMetadata = class extends db.Model {
       static KEY = { name: S.str }
       static FIELDS = { league: S.str, rank: S.int }
-      static INDEXES = {
-        guildByLeague: { KEY: ['league'], SORT_KEY: ['rank'] },
-        guildByRank: { KEY: ['rank'], SORT_KEY: ['league'] }
-      }
     }
 ```
-Consider this index `guildByLeague` that maps guild to a league. If you query this index, you may find some inconsistency between the league of a guild queried directly vs the list of all the guilds in a league queried using the index.
+If you query by league, you may find some inconsistency between the league of a guild queried directly vs the list of all the guilds in a league queried using the index.
 
 
 ### Creating/Editing Index(es)
 
-`Backfilling`: When you create a new index, it is not backfilled automatically. Index is guaranteed to update ONLY when a model row is saved.
+`Backfilling`: When you create a new index, it is not backfilled automatically. Index is guaranteed to update ONLY when a model row is saved. TODO: double-check when backfilling occurs for Firestore.
 
-TIPS: You can take advantage of our MapReduce service to backfill your table by read/write of all the rows.
-
-`Modifying multiple Indexes`: For an **existing table**, you can edit only one index per deployment. If you intend to edit multiple, you have to make one addition/deletion per deployment and wait for some time to finish processing the last change. It takes a few mins for a small table, but for large table, it can become substantial.
-
-### Data Projection
-By default, we project ALL columns in every index. This is helpful in most cases. However, in certain situations, we might want to project only a few columns. This can reduce the size of the index significantly. [Read more about projection here](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Projection.html).
-
-e.g. in the `PXPayout` model, we might want to find all the payouts done on a certain date and not care about the actual payout or the notes left by the admin.
-
-
-```javascript <!-- embed:./test/unit-test-model.js:scope:class PXPayout -->
-class PXPayout extends db.Model {
-  static KEY = { player: S.str, admin: S.str }
-  static FIELDS = {
-    payout: S.int, date: S.str.optional(), notes: S.str.optional(), status: S.bool
-  }
-
-  static INDEXES = {
-    payoutByPlayer: { KEY: ['player'], SORT_KEY: ['admin', 'payout'] },
-    payoutByAdmin: { KEY: ['admin'], SORT_KEY: ['payout'] },
-    payoutByStatus: { KEY: ['status'], INCLUDE_ONLY: ['date'] }
-  }
-}
-```
-**TIPS**: Space optimization can help design systems where a few partition keys might contain a large amount of data (e.g. an individual queue in a taskqueue). [Tips to choose projection](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/bp-indexes-general.html#bp-indexes-general-projections).
-
-KEY/SORT_KEY are always projected. If you want to project only the keys you can do something like `INCLUDE_ONLY: []`.
+TIP: You can use Dataflow to read/re-write of all the rows.
 
 
 ### Cost of Indexing
 
-Indexes increase the physical storage and data write cost for the model. Each index maintains a copy of the entire table (if the index key column isn't undefined).
+Indexes increase the physical storage and data write cost for the model.
 
-e.g. If you have 3 indexes for a table, your data storage cost is 4x (3x for each index and 1x for the original table), and your data write cost would also be 4x.
-
-### Limitations
-Indexes have a [Partition Limitation](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/bp-partition-key-design.html) similar to a table. Your index partition (KEY + SORT_KEY combination) should be limited to
-- 10 GB of data
-- 1,000 WCUs (~ 500 transactions/sec with 4KB data)
-- 3,000 RCUs (~1500 transactions/sec with 4KB data)
-
-### Lazy Filtering model’s Key/Sort Key
-
-Index by default contains all the columns, but you can not lazy filter on the underlying model's KEY/SORT_KEY. To do that, you need to set the `INDEX_INCLUDE_KEYS` field.
-
-```javascript <!-- embed:./test/unit-test-iterators.js:scope:class:LazyFilterKeyExample -->
-class LazyFilterKeyExample extends db.Model {
-  static INDEX_INCLUDE_KEYS = true
-
-  static KEY = {
-    id: S.str,
-    num: S.int
-  }
-
-  static FIELDS = {
-    field: S.str
-  }
-
-  static INDEXES = {
-    index: { KEY: ['field'] }
-  }
-}
-```
-
-**Sparse Index Keys**
-
-To create an index with sparse indexing, define `SPARSE: true` for your index. Sparse index can optimize your query performances for large tables. If this flag is enabled, you can use optional fields for index keys.
-
-```javascript
-  class User extends db.Model {
-    static KEY = { uid }
-    static FIELDS = { banned = S.str.optional() }
-    static INDEXES = {
-      bannedUsersIndex = { KEY = [ 'banned' ], SPARSE = true }
-    }
-  }
-```
-
-## Overlapping Models
-Two models may be stored in the same physical table (after all, the underlying
-tables don't enforce a schema; each row could theoretically be different,
-except for the key structure).
-
-This may be desirable on rare occasions when two related types of data should
-be co-located on the same database node (by putting them in the same table and
-giving them the same partition key value, but differing [sort key](#sort-keys)
-values).
-
-This example has just one table, Inventory, which is populated by two different
-(but related) models:
-```javascript
-class Inventory extends db.Model {
-  // we override the default table name so that our subclasses all use the same
-  // table name
-  static tableName = 'Inventory'
-  static KEY = { userID: S.str }
-
-  static get SORT_KEY () {
-    return { typeKey: S.str.default(this.INVENTORY_ITEM_TYPE) }
-  }
-
-  static get FIELDS () {
-    return { stuff: S.obj().default({}) }
-  }
-
-  static INVENTORY_ITEM_TYPE () { throw new Error('To be overwritten') }
-}
-class Currency extends Inventory {
-  static INVENTORY_ITEM_TYPE = 'money'
-}
-class Weapon extends Inventory {
-  static INVENTORY_ITEM_TYPE = 'weapon'
-  static FIELDS = {
-    ...super.FIELDS,
-    weaponSkillLevel: S.int
-  }
-}
-
-// both items will be stored in the Inventory; both will also be stored on
-// the same database node since they share the same partition key (userID)
-tx.create(Currency, {
-  userID,
-  typeKey: Currency.INVENTORY_ITEM_TYPE,
-  stuff: { usd: 123, rmb: 456 }
-})
-tx.create(Weapon, {
-  userID,
-  typeKey: Weapon.INVENTORY_ITEM_TYPE,
-  stuff: { ax: {/* ... */} },
-  weaponSkillLevel: 13
-})
-```
 
 ## Repeated Reads
 By default, reading a row twice in a single transaction is treated as an
@@ -1487,7 +1181,3 @@ provide.
 The samples in this readme can be found in the APIs defined for unit testing
 this library in `test/unit-test-doc.js` in the
 `DBReadmeTest` class.
-
-## Unsupported DynamoDB Features
-This library does not yet support:
-   - Indexing

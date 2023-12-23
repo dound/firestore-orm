@@ -40,12 +40,6 @@ class TransactionExample extends db.Model {
       }).optional()
     }).optional()
   }
-
-  static INDEXES = {
-    index1: { KEY: ['id'], SORT_KEY: ['field1', 'field2'], SPARSE: true },
-    index2: { KEY: ['arrField'], SPARSE: true },
-    index3: { KEY: ['id', 'field1'], SPARSE: true }
-  }
 }
 
 class HookExample extends db.Model {
@@ -506,16 +500,6 @@ class TransactionWriteTest extends QuickTransactionTest {
     })
     model = await txGet(data)
     expect(model.latestUpdateEpoch).toEqual(2000)
-  }
-
-  async testWriteIndexData () {
-    const data = TransactionExample.data(this.modelName)
-    expect(async () => {
-      await db.Transaction.run(async (tx) => {
-        const txModel = await tx.get(data, { createIfMissing: true })
-        txModel._c_field1_field2 = 'wrong data'
-      })
-    }).rejects.toThrow(db.InvalidFieldError)
   }
 
   async testMultipleCreateErrors () {
