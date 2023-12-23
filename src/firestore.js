@@ -47,7 +47,7 @@ const {
  * @private
  */
 function setup (firestoreClient) {
-  // Make DynamoDB document clients available to these classes
+  // Make Firestore database client available to these classes
   const clsWithDBAccess = [
     __WriteBatcher,
     Model,
