@@ -1,4 +1,4 @@
-const AWSError = require('./aws-error')
+const DBError = require('./aws-error')
 const {
   InvalidFilterError, InvalidOptionsError
 } = require('./errors')
@@ -149,7 +149,7 @@ class __DBIterator {
     const result = await client[method](params).promise()
       .catch(
         // istanbul ignore next
-        e => { throw new AWSError(method, e) })
+        e => { throw new DBError(method, e) })
 
     const models = result.Items?.map(item => {
       const m = new this.__ModelCls(ITEM_SOURCE[method.toUpperCase()], false,

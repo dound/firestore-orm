@@ -3,7 +3,7 @@ const assert = require('assert')
 const { detailedDiff } = require('deep-object-diff')
 
 const AsyncEmitter = require('./async-emitter')
-const AWSError = require('./aws-error')
+const DBError = require('./aws-error')
 const { Data } = require('./data')
 const {
   InvalidCachedModelError,
@@ -219,7 +219,7 @@ class __WriteBatcher {
       this.__extractError(request, response)
     })
     await request.promise().catch(e => {
-      throw new AWSError('transactWrite', e)
+      throw new DBError('transactWrite', e)
     })
   }
 
@@ -409,7 +409,7 @@ class Transaction {
       .catch(
         // istanbul ignore next
         e => {
-          throw new AWSError('get', e)
+          throw new DBError('get', e)
         })
     if (!params.createIfMissing && !data.Item) {
       this.__writeBatcher.track(new NonExistentItem(key))
@@ -451,7 +451,7 @@ class Transaction {
       TransactItems: txItems
     }).promise().catch(
       // istanbul ignore next
-      e => { throw new AWSError('transactGet', e) }
+      e => { throw new DBError('transactGet', e) }
     )
     const responses = data.Responses
     const models = []
@@ -529,7 +529,7 @@ class Transaction {
         RequestItems: reqItems
       }).promise().catch(
         // istanbul ignore next
-        e => { throw new AWSError('batchGet', e) }
+        e => { throw new DBError('batchGet', e) }
       )
 
       // Merge results

@@ -4,7 +4,7 @@ const S = require('@pocketgems/schema')
 const stableStringify = require('fast-json-stable-stringify')
 const deepcopy = require('rfdc')()
 
-const AWSError = require('./aws-error')
+const DBError = require('./aws-error')
 const { Data } = require('./data')
 const {
   GenericModelError,
@@ -1372,7 +1372,7 @@ class Model {
       try {
         await this.documentClient[method](params).promise().catch(
           // istanbul ignore next
-          e => { throw new AWSError('write model', e) }
+          e => { throw new DBError('write model', e) }
         )
         return
       } catch (error) {

@@ -1,5 +1,5 @@
 // istanbul ignore file
-class AWSError extends Error {
+class DBError extends Error {
   constructor (action, e) {
     super(`Failed to ${action} with error ${e}`)
     this.code = e.code
@@ -9,4 +9,4 @@ class AWSError extends Error {
   }
 }
 
-module.exports = AWSError
+module.exports = DBError
