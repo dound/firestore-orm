@@ -1,5 +1,4 @@
 process.env.INDEBUGGER = 1
-process.env.DYNAMO_ENDPT = 'http://localhost:8000'
-process.env.AWS_ACCESS_KEY_ID = 'ignored'
-process.env.AWS_SECRET_ACCESS_KEY = 'ignored'
+process.env.USE_EMULATOR = 1
+process.env.FIREBASE_ENDPOINT = 'http://localhost:8110'
 process.env.SERVICE = 'unittest'
