@@ -55,7 +55,7 @@ function fieldFromFieldOptions (Cls, options) {
     }[Cls.name]
   }
   const valIsFromDB = processOption('valIsFromDB')
-  const keyType = processOption('keyType')
+  const isKey = processOption('isKey')
   processOption('optional', isOpt => isOpt ? schema.optional() : schema)
   processOption('immutable', isReadOnly => schema.readOnly(isReadOnly))
   processOption('default', val => schema.default(val))
@@ -64,7 +64,7 @@ function fieldFromFieldOptions (Cls, options) {
       `unexpected option(s): ${optionKeysLeft}`)
   const name = 'fakeTestField'
   options = db.__private.__Field.__validateFieldOptions(
-    'fakeTestData', keyType, name, schema)
+    'fakeTestData', isKey, name, schema)
   return new Cls({
     idx: 0,
     name,

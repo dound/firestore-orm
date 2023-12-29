@@ -127,7 +127,6 @@ class ParameterTest extends BaseTest {
 
 class KeyOnlyExample extends db.Model {
   static KEY = { id: S.str.min(1) }
-  static SORT_KEY = { sk: S.str.min(1) }
 }
 
 class KeyOnlyExample2 extends KeyOnlyExample {
@@ -139,78 +138,19 @@ class TransactionEdgeCaseTest extends BaseTest {
     jest.restoreAllMocks()
   }
 
-  async testKeyCollision () {
-    const suffix = uuidv4()
-    await db.Transaction.run(tx => {
-      const i1 = tx.create(KeyOnlyExample, { id: 'x', sk: 'y' + suffix })
-      const i2 = tx.create(KeyOnlyExample, { id: 'xy', sk: suffix })
-      expect(i1.toString()).not.toEqual(i2.toString())
-    })
-  }
-
   async testKeyCollisionFromSeparateModels () {
-    const suffix = uuidv4()
+    const id = uuidv4()
     let checked = false
     const promise = db.Transaction.run(async tx => {
-      const i1 = tx.create(KeyOnlyExample, { id: 'x', sk: suffix })
+      const i1 = tx.create(KeyOnlyExample, { id })
       await db.Transaction.run(tx => {
-        const i2 = tx.create(KeyOnlyExample2, { id: 'x', sk: suffix })
+        const i2 = tx.create(KeyOnlyExample2, { id })
         expect(i1.toString()).toEqual(i2.toString())
         checked = true
       })
     })
     await expect(promise).rejects.toThrow(db.ModelAlreadyExistsError)
     expect(checked).toBe(true)
-  }
-
-  async testConditionedOnNonExistentItem () {
-    const idToRead = { id: uuidv4(), sk: 'x' }
-    const idToWrite = { id: uuidv4(), sk: 'y' }
-
-    // make transactWrite() is called with the proper parameters
-    const __WriteBatcher = db.__private.__WriteBatcher
-    const spy = jest.spyOn(__WriteBatcher.prototype, 'transactWrite')
-    await db.Transaction.run(async tx => {
-      const item = await tx.get(KeyOnlyExample, idToRead)
-      if (!item) {
-        tx.create(KeyOnlyExample, idToWrite)
-      }
-    })
-    await db.Transaction.run(async tx => {
-      expect(await tx.get(KeyOnlyExample, idToRead)).toBe(undefined)
-      expect(await tx.get(KeyOnlyExample, idToWrite)).not.toBe(undefined)
-    })
-    expect(spy).toHaveBeenCalledTimes(1)
-    const callArgs = spy.mock.calls[0]
-    expect(callArgs.length).toBe(1)
-    expect(Object.keys(callArgs[0])).toEqual(['TransactItems'])
-    const txItems = callArgs[0].TransactItems
-    expect(txItems.length).toBe(2)
-    const putIdx = txItems[0].Put ? 0 : 1
-    const putExpr = txItems[putIdx]
-    const checkExpr = txItems[1 - putIdx]
-    expect(putExpr).toEqual({
-      Put: {
-        TableName: 'unittestKeyOnlyExample',
-        Item: {
-          _id: idToWrite.id,
-          _sk: 'y'
-        },
-        ConditionExpression: 'attribute_not_exists(#_id)',
-        ExpressionAttributeNames: { '#_id': '_id' }
-      }
-    })
-    expect(checkExpr).toEqual({
-      ConditionCheck: {
-        TableName: 'unittestKeyOnlyExample',
-        Key: {
-          _id: idToRead.id,
-          _sk: 'x'
-        },
-        ConditionExpression: 'attribute_not_exists(#_id)',
-        ExpressionAttributeNames: { '#_id': '_id' }
-      }
-    })
   }
 }
 

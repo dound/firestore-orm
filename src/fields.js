@@ -100,22 +100,23 @@ class __BaseField extends __FieldInterface {
  * @memberof Internal
  */
 class __Field extends __BaseField {
-  static __validateFieldOptions (modelName, keyType, fieldName, schema) {
+  static __validateFieldOptions (modelName, isKey, fieldName, schema) {
     if (fieldName.startsWith('_')) {
       throw new InvalidFieldError(
         fieldName, 'property names may not start with "_"')
     }
 
-    assert(['PARTITION', 'SORT', undefined].includes(keyType),
-      'keyType must be one of \'PARTITION\', \'SORT\' or undefined')
+    if (isKey === undefined) {
+      isKey = false
+    }
+    assert([true, false].includes(isKey), 'isKey must be true or false')
     assert(schema.isTodeaSchema, 'must be Todea schema')
 
     const compiledSchema = schema.getValidatorAndJSONSchema(
       `${modelName}.${fieldName}`)
     const jsonSchema = compiledSchema.jsonSchema
-    const isKey = !!keyType
     const options = {
-      keyType,
+      isKey,
       schema: jsonSchema,
       optional: schema.required === false,
       immutable: isKey || jsonSchema.readOnly === true,
@@ -127,9 +128,9 @@ class __Field extends __BaseField {
 
     const hasDefault = Object.prototype.hasOwnProperty.call(jsonSchema, 'default')
     if (isKey) {
-      if (hasDefault && keyType === 'PARTITION') {
+      if (hasDefault && isKey) {
         throw new InvalidOptionsError('default',
-          'No defaults for partition keys.') // It just doesn\'t make sense.
+          'No defaults for keys.') // It just doesn\'t make sense.
       }
       if (jsonSchema.readOnly === false) {
         throw new InvalidOptionsError('immutable',
@@ -148,9 +149,8 @@ class __Field extends __BaseField {
 
   /**
    * @typedef {Object} FieldOptions
-   * @property {'PARTITION'|'SORT'} [keyType=undefined] If specified, the field is
-   *   a key. Use 'PARTITION' for a partition key. Use 'SORT' for a sort key.
-   *   When keyType is specified, other options are forced to be
+   * @property {Boolean} [isKey=false] If true, the field is
+   *   a key. When specified, other options are forced to be
    *   { optional: false, immutable: true, default: undefined }. If user
    *   supplied values that conflicts with those values, InvalidOptionsError
    *   will be thrown.
@@ -243,7 +243,7 @@ class __Field extends __BaseField {
     }
 
     // validate the value, if needed
-    if (!this.keyType) { // keys are validated elsewhere; don't re-validate
+    if (!this.isKey) { // keys are validated elsewhere; don't re-validate
       if (!useDefault) { // default was validated by __validateFieldOptions
         // validate everything except values omitted from an update() call
         if (valSpecified || !(isForUpdate || isForDelete)) {
@@ -293,7 +293,7 @@ class __Field extends __BaseField {
   get canUpdateWithoutCondition () {
     return (
       // keys uniquely identify an item; all keys generate a condition check
-      this.keyType === undefined &&
+      !this.isKey &&
       // if an item's value is read before it is modified, then we must verify
       // that it's value doesn't change
       !this.__readInitialValue)

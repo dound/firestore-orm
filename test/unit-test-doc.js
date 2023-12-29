@@ -605,67 +605,6 @@ class DBReadmeTest extends BaseTest {
     })).rejects.toThrow(err)
   }
 
-  async testSortKeys () {
-    class CustomerData extends db.Model {
-      static KEY = { store: S.str }
-      static SORT_KEY = { customer: S.str }
-    }
-    await db.Transaction.run(tx => {
-      tx.create(CustomerData, { store: 'Wallymart', customer: uuidv4() })
-    })
-  }
-
-  async testOverlappingModels () {
-    class Inventory extends db.Model {
-      // we override the default table name so that our subclasses all use the same
-      // table name
-      static tableName = 'Inventory'
-      static KEY = { userID: S.str }
-      static get SORT_KEY () {
-        return { typeKey: S.str.default(this.INVENTORY_ITEM_TYPE) }
-      }
-
-      static get FIELDS () {
-        return {
-          stuff: S.obj({
-            usd: S.int.optional(),
-            rmb: S.int.optional(),
-            ax: S.obj().optional()
-          }).default({}).optional()
-        }
-      }
-
-      static INVENTORY_ITEM_TYPE () { throw new Error('To be overwritten') }
-    }
-    class Currency extends Inventory {
-      static INVENTORY_ITEM_TYPE = 'money'
-    }
-    class Weapon extends Inventory {
-      static INVENTORY_ITEM_TYPE = 'weapon'
-      static FIELDS = {
-        ...super.FIELDS,
-        weaponSkillLevel: S.int
-      }
-    }
-
-    // both items will be stored in the Inventory; both will also be stored on
-    // the same database node since they share the same partition key (userID)
-    const userID = uuidv4()
-    await db.Transaction.run(tx => {
-      tx.create(Currency, {
-        userID,
-        typeKey: Currency.INVENTORY_ITEM_TYPE,
-        stuff: { usd: 123, rmb: 456 }
-      })
-      tx.create(Weapon, {
-        userID,
-        typeKey: Weapon.INVENTORY_ITEM_TYPE,
-        stuff: { ax: {/* ... */} },
-        weaponSkillLevel: 13
-      })
-    })
-  }
-
   async testIncrementBy () {
     class WebsiteHitCounter extends db.Model {
       static FIELDS = { count: S.int.min(0) }

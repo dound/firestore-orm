@@ -226,19 +226,17 @@ class __WriteBatcher {
   /**
    * Find a model with the same TableName and Key from a list of models
    * @param {String} tableName
-   * @param {Object} key { _id: { S: '' }, _sk: { S: '' } }
+   * @param {Object} key { _id: { S: '' } }
    */
   __getModel (tableName, key) {
     const id = Object.values(key._id)[0]
-    const sk = key._sk ? Object.values(key._sk)[0] : undefined
-    return this.getModel(tableName, id, sk)
+    return this.getModel(tableName, id)
   }
 
-  getModel (tableName, id, sk) {
+  getModel (tableName, id) {
     for (const model of this.__allModels) {
       if (model.__fullTableName === tableName &&
-          model._id === id &&
-          model._sk === sk) {
+          model._id === id) {
         return !(model instanceof NonExistentItem) ? model : undefined
       }
     }
@@ -292,7 +290,7 @@ class __WriteBatcher {
           CustomErrorCls = InvalidModelUpdateError
         }
         if (CustomErrorCls) {
-          const err = new CustomErrorCls(tableName, model._id, model._sk)
+          const err = new CustomErrorCls(tableName, model._id)
           if (response.error) {
             response.error.allErrors.push(err)
           } else {
@@ -555,8 +553,7 @@ class Transaction {
       const addModel = () => {
         for (const model of unorderedModels) {
           if (model.__fullTableName === key.Cls.fullTableName &&
-              model._id === key.encodedKeys._id &&
-              model._sk === key.encodedKeys._sk) {
+              model._id === key.encodedKeys._id) {
             models.push(model)
             return true
           }
@@ -633,8 +630,7 @@ class Transaction {
         for (const keyOrData of arr) {
           const cachedModel = this.__writeBatcher.getModel(
             keyOrData.Cls.fullTableName,
-            keyOrData.encodedKeys._id,
-            keyOrData.encodedKeys._sk
+            keyOrData.encodedKeys._id
           )
           if (cachedModel) {
             if (!cachedModel.__src.canBeCached || cachedModel.__toBeDeleted) {
@@ -667,12 +663,11 @@ class Transaction {
 
       let ret = []
       if (this.options.cacheModels) {
-        const findModel = (tableName, id, sk) => {
+        const findModel = (tableName, id) => {
           for (let index = 0; index < keysOrDataToGet.length; index++) {
             const toGetKeyOrData = keysOrDataToGet[index]
             if (tableName === toGetKeyOrData.Cls.fullTableName &&
-              id === toGetKeyOrData.encodedKeys._id &&
-              sk === toGetKeyOrData.encodedKeys._sk) {
+              id === toGetKeyOrData.encodedKeys._id) {
               return fetchedModels[index]
             }
           }
@@ -680,8 +675,7 @@ class Transaction {
           for (const model of cachedModels) {
             // istanbul ignore else
             if (tableName === model.constructor.fullTableName &&
-              id === model._id &&
-              sk === model._sk) {
+              id === model._id) {
               return model
             }
           }
@@ -689,8 +683,7 @@ class Transaction {
         for (const keyOrData of arr) {
           ret.push(findModel(
             keyOrData.Cls.fullTableName,
-            keyOrData.encodedKeys._id,
-            keyOrData.encodedKeys._sk
+            keyOrData.encodedKeys._id
           ))
         }
       } else {
@@ -733,7 +726,7 @@ class Transaction {
     })
 
     Object.keys(updated).forEach(key => {
-      if (Cls._attrs[key].keyType !== undefined) {
+      if (Cls._attrs[key].isKey) {
         throw new InvalidParameterError(
           'updated', 'must not contain key fields')
       }

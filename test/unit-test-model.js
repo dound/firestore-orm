@@ -30,32 +30,21 @@ class BadModelTest extends BaseTest {
       static FIELDS = { name: S.str }
     }
     this.check(BadExample, expMsg)
-
-    class BadModel2 extends db.Model {
-      static SORT_KEY = { name: S.str }
-      static FIELDS = { name: S.str }
-    }
-    this.check(BadModel2, expMsg)
   }
 
   testReservedName () {
     class BadExample extends db.Model {
-      static SORT_KEY = { isNew: S.str }
+      static KEY = { isNew: S.str }
     }
     this.check(BadExample, /field name is reserved/)
 
     class BadModel2 extends db.Model {
-      static SORT_KEY = { getField: S.str }
+      static KEY = { getField: S.str }
     }
     this.check(BadModel2, /shadows a property name/)
   }
 
   testIDName () {
-    class SortKeyMustProvideNamesExample extends db.Model {
-      static SORT_KEY = S.double
-    }
-    this.check(SortKeyMustProvideNamesExample, /must define key component name/)
-
     class PartitionKeyMustProvideNamesExample extends db.Model {
       static KEY = S.double
     }
@@ -63,7 +52,6 @@ class BadModelTest extends BaseTest {
 
     class OkExample extends db.Model {
       static KEY = { id: S.str }
-      static SORT_KEY = null
     }
     OkExample.__doOneTimeModelPrep()
 
@@ -76,12 +64,6 @@ class BadModelTest extends BaseTest {
       static KEY = { id: S.double }
     }
     IDDoesNotHaveToBeAString.__doOneTimeModelPrep()
-
-    class IDCanBeASortKeyName extends db.Model {
-      static KEY = { x: S.double }
-      static SORT_KEY = { id: S.str }
-    }
-    IDCanBeASortKeyName.__doOneTimeModelPrep()
 
     class IDCanBeAFieldName extends db.Model {
       static KEY = { x: S.double }
@@ -386,7 +368,7 @@ class IDSchemaTest extends BaseTest {
     expect(key).toBe(2342)
 
     const decoded = IntKeyExample.__decodeCompoundValue(
-      IntKeyExample.__keyOrder.partition, 2, '_sk', true)
+      IntKeyExample.__keyOrder.partition, 2, '_test', true)
     expect(decoded).toEqual({ id: 2 })
   }
 }
@@ -562,11 +544,7 @@ class ConditionCheckTest extends BaseTest {
   }
 }
 
-class RangeKeyExample extends db.Model {
-  static SORT_KEY = {
-    rangeKey: S.int.min(1)
-  }
-
+class OneFieldExample extends db.Model {
   static FIELDS = {
     n: S.int
   }
@@ -577,91 +555,34 @@ class KeyTest extends BaseTest {
     const fut = db.Transaction.run(async tx => {
       // can't specify field like "n" when reading unless we're doing a
       // createIfMissing=true
-      await tx.get(RangeKeyExample, { id: uuidv4(), rangeKey: 3, n: 3 })
+      await tx.get(OneFieldExample, { id: uuidv4(), n: 3 })
     })
     await expect(fut).rejects.toThrow(/received non-key fields/)
   }
 
   testDataKey () {
     const id = uuidv4()
-    const data = RangeKeyExample.data({ id, rangeKey: 1, n: 5 })
+    const data = OneFieldExample.data({ id, n: 5 })
     const key = data.key
     expect(key.keyComponents.id).toBe(id)
-    expect(key.keyComponents.rangeKey).toBe(1)
     expect(data.data.n).toBe(5)
   }
 
   async testGetWithWrongType () {
     await expect(db.Transaction.run(async tx => {
-      await tx.get(RangeKeyExample.key({ id: uuidv4(), rangeKey: 2 }), {
+      await tx.get(OneFieldExample.key({ id: uuidv4() }), {
         createIfMissing: true
       })
     })).rejects.toThrow(/must pass a Data/)
 
     await expect(db.Transaction.run(async tx => {
-      await tx.get(RangeKeyExample.data({ id: uuidv4(), rangeKey: 2, n: 3 }))
+      await tx.get(OneFieldExample.data({ id: uuidv4(), n: 3 }))
     })).rejects.toThrow(/must pass a Key/)
-  }
-
-  async testSortKey () {
-    async function check (id, rangeKey, n, create = true) {
-      const encodedKeys = { id, rangeKey }
-      if (create) {
-        await txCreate(RangeKeyExample, { ...encodedKeys, n })
-      }
-      const model = await txGet(RangeKeyExample, encodedKeys)
-      expect(model.id).toBe(id)
-      expect(model.rangeKey).toBe(rangeKey)
-      expect(model._sk).toBe(rangeKey)
-      expect(model.n).toBe(n)
-    }
-
-    const id1 = uuidv4()
-    await check(id1, 1, 0)
-
-    // changing the sort key means we're working with a different row
-    await check(id1, 2, 1)
-    await check(id1, 1, 0, false)
-
-    // changing the partition key but not the sort key also means we're working
-    // with a different row
-    const id2 = uuidv4()
-    await check(id2, 1, 2)
-    await check(id2, 2, 3)
-    await check(id1, 1, 0, false)
-    await check(id1, 2, 1, false)
-
-    // should be able to update fields in a model with a sort key
-    await db.Transaction.run(async tx => {
-      await tx.update(RangeKeyExample, { id: id1, rangeKey: 1, n: 0 }, { n: 99 })
-    })
-    await check(id1, 1, 99, false)
-    // but not the sort key itself
-    // this throws because no such row exists:
-    await expect(db.Transaction.run(async tx => {
-      await tx.update(RangeKeyExample, { id: id1, rangeKey: 9, n: 0 }, { n: 99 })
-    })).rejects.toThrow()
-    // these last two both throw because we can't modify key values
-    await expect(db.Transaction.run(async tx => {
-      const x = await tx.get(RangeKeyExample, { id: id1, rangeKey: 1 })
-      x.rangeKey = 2
-    })).rejects.toThrow(/rangeKey is immutable/)
-    await expect(db.Transaction.run(async tx => {
-      await tx.update(RangeKeyExample, { id: id1, rangeKey: 1 }, { rangeKey: 2 })
-    })).rejects.toThrow(/must not contain key fields/)
-    await expect(db.Transaction.run(async tx => {
-      const x = await tx.get(RangeKeyExample, { id: id1, rangeKey: 1 })
-      x.id = uuidv4()
-    })).rejects.toThrow(/id is immutable/)
-    await expect(db.Transaction.run(async tx => {
-      await tx.update(RangeKeyExample, { id: id1, rangeKey: 1 }, { id: id2 })
-    })).rejects.toThrow(/must not contain key fields/)
   }
 
   async testValidKey () {
     SimpleExample.key(uuidv4())
     SimpleExample.key({ id: uuidv4() })
-    RangeKeyExample.key({ id: uuidv4(), rangeKey: 1 })
   }
 
   async testInvalidKey () {
@@ -679,31 +600,6 @@ class KeyTest extends BaseTest {
     for (const keyValues of invalidIDsForSimpleExample) {
       expect(() => {
         SimpleExample.key(keyValues)
-      }).toThrow()
-    }
-
-    const invalidIDsForRangeModel = [
-      // these have valid IDs, but are missing the required sort key
-      id,
-      { id },
-      { id, abc: 123 },
-      // has all required key, but the range key is invalid (schema mismatch)
-      { id, rangeKey: '1' },
-      { id, rangeKey: true },
-      { id, rangeKey: 1.1 },
-      { id, rangeKey: { x: 1 } },
-      { id, rangeKey: [1] },
-      // invalid ID and missing range key
-      1,
-      // missing or invalid ID
-      { rangeKey: 1 },
-      { id: 'bad format', rangeKey: 1 },
-      // range key validation fails (right type, but too small)
-      { id, rangeKey: -1 }
-    ]
-    for (const keyValues of invalidIDsForRangeModel) {
-      expect(() => {
-        RangeKeyExample.key(keyValues)
       }).toThrow()
     }
   }
@@ -996,93 +892,6 @@ class WriteBatcherTest extends BaseTest {
 
     IDWithSchemaExample.register(fakeRegistrator)
     expect(called).toBe(true)
-  }
-
-  async testExceptionParser () {
-    const reasons = []
-    const response = {
-      httpResponse: {
-        body: {
-          toString: function () {
-            return JSON.stringify({
-              CancellationReasons: reasons
-            })
-          }
-        }
-      }
-    }
-
-    let itemSourceCreate
-    await db.Transaction.run(tx => {
-      const row = tx.create(IDWithSchemaExample, { id: 'xyz' + uuidv4() })
-      itemSourceCreate = row.__src
-    })
-
-    const batcher = new db.__private.__WriteBatcher()
-    batcher.track({
-      __fullTableName: 'unittestTestData',
-      tableName: 'TestData',
-      _id: '123',
-      __src: itemSourceCreate
-    })
-    batcher.__extractError({}, response)
-    expect(response.error).toBe(undefined)
-
-    try {
-      batcher.__extractError({}, {
-        httpResponse: {
-          body: JSON.stringify({ oops: 'unexpected response structure' })
-        }
-      })
-    } catch (e) {
-      expect(e.message).toContain('error body missing reasons')
-    }
-
-    const row = { _id: { S: '123' } }
-    reasons.push({
-      Code: 'ConditionalCheckFailed',
-      Item: row
-    })
-    const request = {
-      params: {
-        TransactItems: [{
-          Put: {
-            Item: row,
-            TableName: 'unittestTestData'
-          }
-        }]
-      }
-    }
-    response.error = undefined
-    batcher.__extractError(request, response)
-    expect(response.error.message)
-      .toBe('Tried to recreate an existing model: unittestTestData _id=123')
-
-    batcher.__allModels[0]._sk = '456'
-    request.params.TransactItems = [
-      {
-        Update: {
-          Key: { _id: { S: '123' }, _sk: { S: '456' } },
-          TableName: 'unittestTestData'
-        }
-      }
-    ]
-    response.error = undefined
-    batcher.__extractError(request, response)
-    expect(response.error.message)
-      .toBe([
-        'Tried to recreate an existing model: ',
-        'unittestTestData _id=123 _sk=456'].join(''))
-
-    response.error = undefined
-    batcher.__allModels[0].__src = 'something else'
-    batcher.__extractError(request, response)
-    expect(response.error).toBe(undefined)
-
-    reasons[0].Code = 'anything else'
-    response.error = undefined
-    batcher.__extractError({}, response)
-    expect(response.error).toBe(undefined)
   }
 
   async TestDataAlreadyExistsError () {
@@ -1484,33 +1293,6 @@ class SnapshotTest extends BaseTest {
     }
     expect(result.before).toStrictEqual(expectation)
     expect(result.after).toStrictEqual(expectation)
-  }
-
-  async testRangeKey () {
-    await db.Transaction.run(async tx => {
-      const id = uuidv4()
-      const m = await tx.get(RangeKeyExample, { id, rangeKey: 1, n: 1 }, { createIfMissing: true })
-      expect(m.getSnapshot({ initial: true, dbKeys: true })).toStrictEqual({
-        _id: undefined,
-        _sk: undefined,
-        n: undefined
-      })
-      expect(m.getSnapshot({ initial: true })).toStrictEqual({
-        id: undefined,
-        rangeKey: undefined,
-        n: undefined
-      })
-      expect(m.getSnapshot({ dbKeys: true })).toStrictEqual({
-        _id: id,
-        _sk: 1,
-        n: 1
-      })
-      expect(m.getSnapshot({})).toStrictEqual({
-        id: id,
-        rangeKey: 1,
-        n: 1
-      })
-    })
   }
 }
 

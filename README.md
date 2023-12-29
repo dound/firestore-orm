@@ -45,7 +45,6 @@ high-level abstractions to structure data and prevent race conditions.
   - [Nested Transactions are NOT Nested](#nested-transactions-are-not-nested)
   - [Time To Live](#time-to-live)
   - [Table Creation \& Persistence](#table-creation--persistence)
-  - [Sort Keys](#sort-keys)
   - [Indexes](#indexes)
     - [Eventual Consistency](#eventual-consistency)
     - [Creating/Editing Index(es)](#creatingediting-indexes)
@@ -714,9 +713,8 @@ Queries can be executed using the paginator API and generator API:
   code if the generator is stopped early.
 
 #### Sorting
-Query results are sorted by sort keys in ascending order by default. Returning
-rows in descending order requires enabling `descending` option when creating
-the query handle.
+Query results are ordered by key by default. They can be queried in descending
+order as follows:
 ```javascript <!-- embed:./test/unit-test-iterators.js:section:example descending start:example descending end -->
       const query = tx.query(QueryExample, { descending: true })
 ```
@@ -892,8 +890,6 @@ expect(row._id).toBe('123\0Joe')
 const key = RaceResult.key({ runnerName: 'Mel', raceID: 123 })
 expect(key.Cls).toBe(RaceResult)
 expect(key.encodedKeys._id).toBe('123\0Mel')
-
-// the encoded sort key, if any, will be stored in the _sk attribute
 ```
 
 For this reason, string values cannot contain the null character. If you need
@@ -978,46 +974,9 @@ _not_ change anything in the database. Be especially wary about changing the
 key structure — it will probably cause serious problems.
 
 
-## Sort Keys
-The key which uniquely identifies a row in a table has two components:
-  1. `KEY` - this defines the table's _partition_ key. A table's rows are
-     typically stored across many different database nodes. The _hash_ of the
-     partition key is used to determine which node hosts which rows, though
-     you don't normally need to be aware of this detail.
-  1. `SORT_KEY` - this defines the table's _optional_ _sort_ key. Sort keys are
-     also part of a row's unique identity, but doesn't affect partitioning.
-     Rows with the same partition key but different sort keys will all be
-     stored on the same node.
-
-Accessing many small row from the same table with the same partition key but
-different sort keys is just as efficient as lumping them all into one large
-row. Performance will be better when you only need to access a subset of these
-smaller rows.
-
-This is better than using different partition keys (or different tables) for
-the smaller rows because then doing transactions involving multiple rows
-would probably incur a performance penalty as the transaction would need to run
-across multiple nodes instead of just one.
-
-When using sort keys, be careful not to overload an single database node. For
-example, it'd be awful to have a model like this:
-```javascript
-class CustomerData extends db.Model {
-  static KEY = { store: S.str }
-  static SORT_KEY = { customer: S.str }
-}
-tx.create(CustomerData, { store: 'Walmart', customer: uuidv4() })
-```
-
-In this case, every customer for a store would be on the same database node.
-It'd be much better for the customer to be part of the partition key instead of
-the sort key. Sort keys should be used for highly related data that will often
-be used together. It should not be used for overly large or unrelated data.
-
-
 ## Indexes
 
-Indexes can optimize some data access patterns like filtering and sorting. Indexes are automatically kept up to date but are only eventually consistent.
+Indexes are required by Firestore in order to perform queries. Indexes are automatically kept up to date but are only eventually consistent.
 
 
 ### Eventual Consistency
@@ -1118,7 +1077,7 @@ an exception regardless of the cacheModels flag value.
 When duplicated keys are passed to `tx.get()`, an error will result, even if
 [model cache](#repeated-reads) is enabled, because it is more likely to be a
 coding error in common use cases. Keys must be de-duplicated by removing
-repeated class, hash and sort key combinations. The `db.UniqueKeyList` class
+repeated class and key combinations. The `db.UniqueKeyList` class
 provides an `Array` like interface to simplify the deduplication process.
 ```javascript
 const keys = new db.UniqueKeyList(MyModel.key('123'))

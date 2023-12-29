@@ -4,7 +4,7 @@
 class Key {
   /**
    * @param {Model} Cls a Model class
-   * @param {Object} encodedKeys map of encoded partition and sort key
+   * @param {Object} encodedKeys map of encoded key
    * @param {Object} keyComponents key component values
    * @private
    */
@@ -29,8 +29,8 @@ class UniqueKeyList extends Array {
   }
 
   static getKeyHash (key) {
-    const { _id, _sk } = key.encodedKeys
-    return `${key.Cls.name}::${_id}::${_sk}`
+    const { _id } = key.encodedKeys
+    return `${key.Cls.name}::${_id}`
   }
 
   push (...keys) {

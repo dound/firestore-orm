@@ -80,7 +80,7 @@ class CommonFieldTest extends BaseTest {
   }
 
   get allFlags () {
-    return ['immutable', 'default', 'keyType', 'optional']
+    return ['immutable', 'default', 'isKey', 'optional']
   }
 
   testFlagsExist () {
@@ -190,69 +190,40 @@ class CommonFieldTest extends BaseTest {
   }
 
   testHashKeyImmutable () {
-    let field = db.__private.NumberField({ keyType: 'PARTITION' })
+    let field = db.__private.NumberField({ isKey: true })
     expect(field.immutable).toBe(true)
 
     expect(() => {
-      db.__private.NumberField({ keyType: 'PARTITION', immutable: false })
+      db.__private.NumberField({ isKey: true, immutable: false })
     }).toThrow(db.InvalidOptionsError)
 
-    field = db.__private.NumberField({ keyType: 'PARTITION', immutable: true })
-    expect(field.immutable).toBe(true)
-
-    field = db.__private.NumberField({ keyType: 'SORT' })
-    expect(field.immutable).toBe(true)
-
-    expect(() => {
-      db.__private.NumberField({ keyType: 'SORT', immutable: false })
-    }).toThrow(db.InvalidOptionsError)
-
-    field = db.__private.NumberField({ keyType: 'SORT', immutable: true })
+    field = db.__private.NumberField({ isKey: true, immutable: true })
     expect(field.immutable).toBe(true)
   }
 
   testKeyNoDefault () {
-    let field = db.__private.NumberField({ keyType: 'PARTITION' })
+    const field = db.__private.NumberField({ isKey: true })
     expect(field.default).toBe(undefined)
 
     expect(() => {
-      db.__private.NumberField({ keyType: 'PARTITION', default: 1 })
+      db.__private.NumberField({ isKey: true, default: 1 })
     }).toThrow(db.InvalidOptionsError)
-
-    field = db.__private.NumberField({ keyType: 'SORT' })
-    expect(field.default).toBe(undefined)
-
-    // sort keys can have defaults
-    field = db.__private.NumberField({ keyType: 'SORT', default: 1 })
-    expect(field.default).toBe(1)
   }
 
   testKeyRequired () {
-    let field = db.__private.NumberField({ keyType: 'PARTITION' })
+    let field = db.__private.NumberField({ isKey: true })
     expect(field.optional).toBe(false)
 
-    field = db.__private.NumberField({ keyType: 'PARTITION' })
+    field = db.__private.NumberField({ isKey: true })
     expect(field.optional).toBe(false)
 
     expect(() => {
-      db.__private.NumberField({ keyType: 'PARTITION', optional: true })
+      db.__private.NumberField({ isKey: true, optional: true })
     }).toThrow(db.InvalidOptionsError)
     field = db.__private.NumberField({
-      keyType: 'PARTITION',
+      isKey: true,
       optional: undefined
     })
-    expect(field.optional).toBe(false)
-
-    field = db.__private.NumberField({ keyType: 'SORT' })
-    expect(field.optional).toBe(false)
-
-    field = db.__private.NumberField({ keyType: 'SORT', optional: false })
-    expect(field.optional).toBe(false)
-
-    expect(() => {
-      db.__private.NumberField({ keyType: 'SORT', optional: true })
-    }).toThrow(db.InvalidOptionsError)
-    field = db.__private.NumberField({ keyType: 'SORT', optional: undefined })
     expect(field.optional).toBe(false)
   }
 
@@ -434,7 +405,7 @@ class RepeatedFieldTest extends BaseTest {
   testNonExistAttributeConditionValue () {
     // Make sure attribute_not_exist() is generated for keys even if they are
     // not read
-    let field = this.fieldFactory({ keyType: 'PARTITION' })
+    let field = this.fieldFactory({ isKey: true })
     field.name = 'myField'
     expect(field.__conditionExpression('')).toStrictEqual(
       [`attribute_not_exists(${field.__awsName})`, {}])

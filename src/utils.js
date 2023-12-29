@@ -36,13 +36,9 @@ const SCHEMA_TYPE_TO_JS_TYPE_MAP = {
  * Returns a string which uniquely identifies an item.
  * @param {Model} modelCls the Model for the item
  * @param {string} _id the item's partition key
- * @param {string} [_sk] the item's sort key
  */
-function makeItemString (modelCls, _id, _sk) {
+function makeItemString (modelCls, _id) {
   const arr = [modelCls.tableName, _id]
-  if (_sk !== undefined) {
-    arr.push(_sk)
-  }
   return JSON.stringify(arr)
 }
 

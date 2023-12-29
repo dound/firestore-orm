@@ -7,7 +7,6 @@ const deepcopy = require('rfdc')()
 const DBError = require('./aws-error')
 const { Data } = require('./data')
 const {
-  GenericModelError,
   InvalidFieldError,
   InvalidModelDeletionError,
   InvalidModelUpdateError,
@@ -52,8 +51,7 @@ class Model {
     // __cached_attrs has a __Field subclass object for each non-key attribute.
     this.__attr_getters = {}
 
-    // Decode _id and _sk that are stored in DB into key components that are
-    // in KEY and SORT_KEY.
+    // Decode _id (stored in DB ba
     const setupKey = (attrName, keySchema, keyOrder, vals) => {
       const attrVal = vals[attrName]
       if (attrVal === undefined) {
@@ -67,10 +65,8 @@ class Model {
     }
     setupKey('_id', this.constructor.KEY,
       this.constructor.__keyOrder.partition, vals)
-    setupKey('_sk', this.constructor.SORT_KEY,
-      this.constructor.__keyOrder.sort, vals)
 
-    // add user-defined fields from FIELDS & key components from KEY & SORT_KEY
+    // add user-defined fields from FIELDS & key components from KEY
     let fieldIdx = 0
     for (const [name, opts] of Object.entries(this.constructor._attrs)) {
       this.__addField(fieldIdx++, name, opts, vals)
@@ -149,7 +145,7 @@ class Model {
 
   __addCompoundField (idx, fieldNames, isNew) {
     const name = this.constructor.__encodeCompoundFieldName(fieldNames)
-    if (this.__attr_getters[name] !== undefined || ['_id', '_sk'].includes(name)) {
+    if (this.__attr_getters[name] !== undefined || name === '_id') {
       return
     }
     const fields = fieldNames.map(field => this.__attr_getters[field]())
@@ -193,10 +189,6 @@ class Model {
     if (Object.keys(this.KEY).length === 0) {
       throw new InvalidFieldError('KEY', '/at least one partition key field/')
     }
-    if (this.SORT_KEY?.isTodeaSchema || this.SORT_KEY?.schema) {
-      throw new InvalidFieldError('SORT_KEY',
-        'must define key component name(s)')
-    }
 
     // cannot use the names of non-static Model members (only need to list
     // those that are defined by the constructor; those which are on the
@@ -204,7 +196,7 @@ class Model {
     const reservedNames = new Set(['isNew'])
     const proto = this.prototype
     const ret = {}
-    for (const schema of [this.KEY, this.SORT_KEY ?? {}, this.__getFields()]) {
+    for (const schema of [this.KEY, this.__getFields()]) {
       for (const [key, val] of Object.entries(schema)) {
         if (ret[key]) {
           throw new InvalidFieldError(
@@ -218,23 +210,6 @@ class Model {
           throw new InvalidFieldError(key, 'shadows a property name')
         }
         ret[key] = val
-      }
-    }
-
-    if (this.EXPIRE_EPOCH_FIELD) {
-      const todeaSchema = ret[this.EXPIRE_EPOCH_FIELD]
-      if (!todeaSchema) {
-        throw new GenericModelError(
-          'EXPIRE_EPOCH_FIELD must refer to an existing field',
-          this.name
-        )
-      }
-      const schema = todeaSchema.jsonSchema()
-      if (!['integer', 'number'].includes(schema.type)) {
-        throw new GenericModelError(
-          'EXPIRE_EPOCH_FIELD must refer to an integer or double field',
-          this.name
-        )
       }
     }
     this.__CACHED_SCHEMA = S.obj(ret)
@@ -251,8 +226,7 @@ class Model {
     }
     this.__validatedSchema() // use side effect to validate schema
     this.__CACHED_KEY_ORDER = {
-      partition: Object.keys(this.KEY).sort(),
-      sort: Object.keys(this.SORT_KEY || {}).sort()
+      partition: Object.keys(this.KEY).sort()
     }
     return this.__CACHED_KEY_ORDER
   }
@@ -295,50 +269,24 @@ class Model {
 
     this.__validateTableName()
     // _attrs maps the name of attributes that are visible to users of
-    // this model. This is the combination of attributes (keys) defined by KEY,
-    // SORT_KEY and FIELDS.
+    // this model. This is the combination of attributes (keys) defined by KEY
+    // and FIELDS.
     this._attrs = {}
     this.__compoundFields = new Set()
     this.__KEY_COMPONENT_NAMES = new Set()
     const partitionKeys = new Set(this.__keyOrder.partition)
-    const sortKeys = new Set(this.__keyOrder.sort)
     for (const [fieldName, schema] of Object.entries(this.schema.objectSchemas)) {
-      let keyType
-      if (partitionKeys.has(fieldName)) {
-        keyType = 'PARTITION'
-      } else if (sortKeys.has(fieldName)) {
-        keyType = 'SORT'
-      }
+      const isKey = partitionKeys.has(fieldName)
       const finalFieldOpts = __Field.__validateFieldOptions(
-        this.name, keyType || undefined, fieldName, schema)
+        this.name, isKey, fieldName, schema)
       this._attrs[fieldName] = finalFieldOpts
-      if (keyType) {
+      if (isKey) {
         this.__KEY_COMPONENT_NAMES.add(fieldName)
       }
     }
   }
 
   static __useNumericKey (keySchema) {
-    // ActionHistory table was the only table that had a numeric sort key
-    // before we supported numeric sort keys. It is provisioned with a string
-    // sort key, which happens to work, because the sort key is epoch, which
-    // doesn't grow in magnitude in years, and therefore doesn't suffer from
-    // ordering issue (when sorted, stringified numerical values are
-    // incorrectly ordered, e.g. ["1", "10", "11", "2"]).
-    // To properly fix this table, we will have to move ActionHistory logic to
-    // point to a temporary table, delete the old table, and point logic back,
-    // causing a service disruption for LR Admins who need to debug using
-    // action history. However, since we are migrating ActionHistory from
-    // DynamoDB to AWS TimeStream later, it makes more sense to hold off the
-    // fix and wait for the migration (or the decision to not migrate) to
-    // minimize negative impact.
-    // TODO: Once we move ActionHistory table out of DynamoDB, we can remove
-    // this hack.
-    const isLegacyTable = ['ActionHistory'].includes(this.name)
-    // istanbul ignore if
-    if (isLegacyTable) {
-      return false
-    }
     const schemas = Object.values(keySchema)
     const isUniqueKey = schemas.length === 1
     if (!isUniqueKey) {
@@ -346,7 +294,7 @@ class Model {
     }
     let schemaType
     if (typeof (schemas[0]) === 'string') {
-      const classSchemas = { ...this.KEY, ...this.SORT_KEY, ...this.__getFields() }
+      const classSchemas = { ...this.KEY, ...this.__getFields() }
       schemaType = classSchemas[schemas[0]].getProp('type')
     } else {
       schemaType = schemas[0].getProp('type')
@@ -356,9 +304,8 @@ class Model {
   }
 
   /**
-   * Defines the partition key. Every item in the database is uniquely
-   * identified by the combination of its partition and sort key. The default
-   * partition key is a UUIDv4.
+   * Defines the key. Every item in the database is uniquely identified by its'
+   * key. The default key is a UUIDv4.
    *
    * A key can simply be some scalar value:
    *   static KEY = { id: S.str }
@@ -371,9 +318,6 @@ class Model {
    *   }
    */
   static KEY = { id: S.SCHEMAS.UUID }
-
-  /** Defines the sort key, if any. Uses the compound key format from KEY. */
-  static SORT_KEY = {}
 
   /**
    * Defines the non-key fields. By default there are no fields.
@@ -390,11 +334,6 @@ class Model {
   get _id () {
     return this.__getKey(this.constructor.__keyOrder.partition,
       this.constructor.KEY)
-  }
-
-  get _sk () {
-    return this.__getKey(this.constructor.__keyOrder.sort,
-      this.constructor.SORT_KEY)
   }
 
   __getKey (keyOrder, keySchema) {
@@ -414,10 +353,6 @@ class Model {
     const ret = {
       _id: this._id
     }
-    const sk = this._sk
-    if (sk !== undefined) {
-      ret._sk = sk
-    }
     return ret
   }
 
@@ -426,19 +361,11 @@ class Model {
     return this.__encodeCompoundValue(this.__keyOrder.partition, vals, useNumericKey)
   }
 
-  static __getSk (vals) {
-    if (this.__keyOrder.sort.length <= 0) {
-      return undefined
-    }
-    const useNumericKey = this.__useNumericKey(this.SORT_KEY)
-    return this.__encodeCompoundValue(this.__keyOrder.sort, vals, useNumericKey)
-  }
-
   /**
    * Generate a compound field name given a list of fields.
-   * For compound field containing a single field that is not either a PK or SK,
+   * For compound field containing a single field that is not a KEY,
    * we use the same name as the original field to reduce data duplication.
-   * We also auto-detect if _id, or _sk can be re-used
+   * We also auto-detect if _id can be re-used
    *
    * @param [ fields ] a list of string denoting the fields
    * @returns a string denoting the compound field's internal name
@@ -452,27 +379,19 @@ class Model {
     if (Object.keys(this.KEY).sort().join('\0') === fields.sort().join('\0')) {
       return '_id'
     }
-    if (Object.keys(this.SORT_KEY).sort().join('\0') === fields.sort().join('\0')) {
-      return '_sk'
-    }
 
     return __CompoundField.__encodeName(fields)
   }
 
   /**
-   * Returns a map containing the model's computed key values (_id, as well as
-   * _sk if model has a sort key).
-   * Verifies that the keys are valid (i.e., they match the required schema).
+   * Returns a map containing the model's computed key values (_id).
+   * Verifies that the key is valid (i.e., it matches the required schema).
    * @param {Object} vals map of field names to values
-   * @returns map of _id (and _sk attribute values)
+   * @returns map of _id
    */
   static __computeKeyAttrMap (vals) {
     // compute and validate the partition attribute
     const ret = { _id: this.__getId(vals) }
-    const sk = this.__getSk(vals)
-    if (sk !== undefined) { // Account for 0
-      ret._sk = sk
-    }
     return ret
   }
 
@@ -602,7 +521,7 @@ class Model {
       const field = getter()
       field.validate()
 
-      if (field.keyType) {
+      if (field.isKey) {
         continue
       }
       if (field.__value !== undefined) {
@@ -713,8 +632,8 @@ class Model {
 
     const isUpdate = this.__src.isUpdate
     for (const field of Object.values(this.__cached_attrs)) {
-      if (field.keyType) {
-        // keyparts are never updated and not explicitly represented in store
+      if (field.isKey) {
+        // keys are never updated and not explicitly represented in store
         continue
       }
       if (field.accessed) {
@@ -1039,13 +958,13 @@ class Model {
             error.code === 'ConditionalCheckFailedException'
           if (isConditionalCheckFailure && this.__toBeDeleted) {
             throw new InvalidModelDeletionError(
-              this.constructor.tableName, this._id, this._sk)
+              this.constructor.tableName, this._id)
           } else if (isConditionalCheckFailure && this.__src.isCreate) {
             throw new ModelAlreadyExistsError(
-              this.constructor.tableName, this._id, this._sk)
+              this.constructor.tableName, this._id)
           } else if (isConditionalCheckFailure && this.__src.isUpdate) {
             throw new InvalidModelUpdateError(
-              this.constructor.tableName, this._id, this._sk)
+              this.constructor.tableName, this._id)
           } else {
             throw error
           }
@@ -1131,8 +1050,7 @@ class Model {
   toString () {
     return makeItemString(
       this.constructor,
-      this._id,
-      this._sk
+      this._id
     )
   }
 
@@ -1144,7 +1062,7 @@ class Model {
    * Return snapshot of the model, all fields included.
    * @param {Object} params
    * @param {Boolean} params.initial Whether to return the initial state
-   * @param {Boolean} params.dbKeys Whether to return _id and _sk instead of
+   * @param {Boolean} params.dbKeys Whether to return _id instead of
    *   raw key fields.
    */
   getSnapshot ({ initial = false, dbKeys = false } = {}) {
@@ -1158,9 +1076,6 @@ class Model {
         Object.assign(ret, this.__encodedKey)
       } else {
         ret._id = undefined
-        if (this._sk) {
-          ret._sk = undefined
-        }
       }
     }
     for (const [name, getter] of Object.entries(this.__attr_getters)) {
@@ -1168,7 +1083,7 @@ class Model {
       if (!field || field instanceof __CompoundField) {
         continue
       }
-      if (field.keyType) {
+      if (field.isKey) {
         if (dbKeys) {
           continue
         }
@@ -1201,10 +1116,6 @@ class NonExistentItem {
     return this.key.encodedKeys._id
   }
 
-  get _sk () {
-    return this.key.encodedKeys._sk
-  }
-
   get __fullTableName () {
     return this.key.Cls.fullTableName
   }
@@ -1232,7 +1143,7 @@ class NonExistentItem {
    */
   toString () {
     return makeItemString(
-      this.key.Cls, this.key.encodedKeys._id, this.key.encodedKeys._sk)
+      this.key.Cls, this.key.encodedKeys._id)
   }
 
   getSnapshot () {

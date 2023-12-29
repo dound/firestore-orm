@@ -67,9 +67,8 @@ class TransactionFailedError extends Error {
  * @memberof Errors
  */
 class GenericModelError extends Error {
-  constructor (msg, table, _id, _sk) {
-    const skStr = (_sk !== undefined) ? ` _sk=${_sk}` : ''
-    super(`${msg}: ${table} _id=${_id}${skStr}`)
+  constructor (msg, table, _id) {
+    super(`${msg}: ${table} _id=${_id}`)
     this.name = this.constructor.name
     this.retryable = false
   }
@@ -81,8 +80,8 @@ class GenericModelError extends Error {
  * @memberof Errors
  */
 class ModelAlreadyExistsError extends GenericModelError {
-  constructor (table, _id, _sk) {
-    super('Tried to recreate an existing model', table, _id, _sk)
+  constructor (table, _id) {
+    super('Tried to recreate an existing model', table, _id)
   }
 }
 
@@ -91,9 +90,9 @@ class ModelAlreadyExistsError extends GenericModelError {
  * @memberof Errors
  */
 class InvalidModelUpdateError extends GenericModelError {
-  constructor (table, _id, _sk) {
+  constructor (table, _id) {
     super('Tried to update model with outdated / invalid conditions',
-      table, _id, _sk)
+      table, _id)
   }
 }
 
@@ -102,9 +101,9 @@ class InvalidModelUpdateError extends GenericModelError {
  * @memberof Errors
  */
 class InvalidModelDeletionError extends GenericModelError {
-  constructor (table, _id, _sk) {
+  constructor (table, _id) {
     super('Tried to delete model with outdated / invalid conditions',
-      table, _id, _sk)
+      table, _id)
   }
 }
 
@@ -116,7 +115,7 @@ class InvalidModelDeletionError extends GenericModelError {
 class InvalidCachedModelError extends GenericModelError {
   constructor (model) {
     super('Model is not a valid cached model',
-      model.constructor.fullTableName, model._id, model._sk)
+      model.constructor.fullTableName, model._id)
   }
 }
 
@@ -131,7 +130,7 @@ class ModelTrackedTwiceError extends GenericModelError {
     const src = getSourceDisplayText(model)
     const trackedSrc = getSourceDisplayText(trackedModel)
     const msg = `Model tracked for ${src} already tracked from ${trackedSrc}`
-    super(msg, model.__fullTableName, model._id, model._sk)
+    super(msg, model.__fullTableName, model._id)
     this.model = model
   }
 }
@@ -143,7 +142,7 @@ class ModelTrackedTwiceError extends GenericModelError {
 class ModelDeletedTwiceError extends GenericModelError {
   constructor (model) {
     super('Tried to delete model when it\'s already deleted in the current tx',
-      model.__fullTableName, model._id, model._sk)
+      model.__fullTableName, model._id)
     this.model = model
   }
 }
