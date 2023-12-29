@@ -64,8 +64,7 @@ class Model {
       Object.assign(vals, this.constructor.__decodeCompoundValue(
         keyOrder, attrVal, attrName, useNumericKey))
     }
-    setupKey('_id', this.constructor.KEY,
-      this.constructor.__keyOrder.partition, vals)
+    setupKey('_id', this.constructor.KEY, this.constructor.__keyOrder, vals)
 
     // add user-defined fields from FIELDS & key components from KEY
     let fieldIdx = 0
@@ -226,9 +225,7 @@ class Model {
       return this.__CACHED_KEY_ORDER
     }
     this.__validatedSchema() // use side effect to validate schema
-    this.__CACHED_KEY_ORDER = {
-      partition: Object.keys(this.KEY).sort()
-    }
+    this.__CACHED_KEY_ORDER = Object.keys(this.KEY).sort()
     return this.__CACHED_KEY_ORDER
   }
 
@@ -264,7 +261,7 @@ class Model {
     this._attrs = {}
     this.__compoundFields = new Set()
     this.__KEY_COMPONENT_NAMES = new Set()
-    const partitionKeys = new Set(this.__keyOrder.partition)
+    const partitionKeys = new Set(this.__keyOrder)
     for (const [fieldName, schema] of Object.entries(this.schema.objectSchemas)) {
       const isKey = partitionKeys.has(fieldName)
       const finalFieldOpts = __Field.__validateFieldOptions(
@@ -322,8 +319,7 @@ class Model {
   static FIELDS = {}
 
   get _id () {
-    return this.__getKey(this.constructor.__keyOrder.partition,
-      this.constructor.KEY)
+    return this.__getKey(this.constructor.__keyOrder, this.constructor.KEY)
   }
 
   __getKey (keyOrder, keySchema) {
@@ -341,7 +337,7 @@ class Model {
 
   static __getId (vals) {
     const useNumericKey = this.__useNumericKey(this.KEY)
-    return this.__encodeCompoundValue(this.__keyOrder.partition, vals, useNumericKey)
+    return this.__encodeCompoundValue(this.__keyOrder, vals, useNumericKey)
   }
 
   /**
@@ -875,8 +871,8 @@ class Model {
     assert(this.__setupDone,
       `model ${this.name} one-time setup was not done (remember to export ` +
       'the model')
-    const pKeyOrder = this.__keyOrder.partition
-    if (pKeyOrder.length === 1 && this.__keyOrder.sort.length === 0) {
+    const pKeyOrder = this.__keyOrder
+    if (pKeyOrder.length === 1) {
       const pFieldName = pKeyOrder[0]
       if (!(vals instanceof Object) || !vals[pFieldName]) {
         vals = { [pFieldName]: vals }

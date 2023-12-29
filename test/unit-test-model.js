@@ -212,7 +212,7 @@ class NewModelTest extends BaseTest {
       const model = tx.create(SimpleExample, { id })
       expect(model.id).toBe(id)
       expect(model.id).toBe(SimpleExample.__encodeCompoundValue(
-        SimpleExample.__keyOrder.partition, { id }))
+        SimpleExample.__keyOrder, { id }))
       expect(model.isNew).toBe(true)
       tx.__reset() // Don't write anything, cause it will fail.
       return 321
@@ -289,7 +289,7 @@ class IDSchemaTest extends BaseTest {
 
     // IDs are checked when keys are created too
     expect(() => cls.key('bad')).toThrow(S.ValidationError)
-    const keyOrder = cls.__keyOrder.partition
+    const keyOrder = cls.__keyOrder
     expect(() => cls.__encodeCompoundValue(keyOrder, { id: 'X' }))
       .toThrow(S.ValidationError)
     expect(cls.key('xyz').encodedKey).toEqual('xyz')
@@ -299,7 +299,7 @@ class IDSchemaTest extends BaseTest {
 
   async testCompoundID () {
     const compoundID = { year: 1900, make: 'Honda', upc: uuidv4() }
-    const keyOrder = CompoundIDExample.__keyOrder.partition
+    const keyOrder = CompoundIDExample.__keyOrder
     const id = CompoundIDExample.__encodeCompoundValue(
       keyOrder, compoundID)
     function check (entity) {
@@ -342,7 +342,7 @@ class IDSchemaTest extends BaseTest {
   }
 
   async testObjKeyStableEncoding () {
-    const keyOrder = ObjKeyExample.__keyOrder.partition
+    const keyOrder = ObjKeyExample.__keyOrder
     const key1 = ObjKeyExample.__encodeCompoundValue(keyOrder,
       {
         obj: {
@@ -364,11 +364,11 @@ class IDSchemaTest extends BaseTest {
 
   async testIntKey () {
     const key = IntKeyExample.__encodeCompoundValue(
-      IntKeyExample.__keyOrder.partition, { id: 2342 }, true)
+      IntKeyExample.__keyOrder, { id: 2342 }, true)
     expect(key).toBe(2342)
 
     const decoded = IntKeyExample.__decodeCompoundValue(
-      IntKeyExample.__keyOrder.partition, 2, '_test', true)
+      IntKeyExample.__keyOrder, 2, '_test', true)
     expect(decoded).toEqual({ id: 2 })
   }
 }
