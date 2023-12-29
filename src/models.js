@@ -352,7 +352,6 @@ class Model {
   static __getParams (encodedKey, options) {
     return {
       TableName: this.tableName,
-      ConsistentRead: !options.inconsistentRead,
       Key: encodedKey
     }
   }
@@ -361,8 +360,6 @@ class Model {
    * Parameters for fetching a model and options to control how a model is
    * fetched from database.
    * @typedef {Object} GetParams
-   * @property {Boolean} [inconsistentRead=false] If true, model is read with
-   *   strong consistency, else the read is eventually consistent.
    * @property {Boolean} [createIfMissing=false] If true, a model is returned
    *   regardless of whether the model exists on server. This behavior is the
    *   same as calling create when get(..., { createIfMissing: false }) returns

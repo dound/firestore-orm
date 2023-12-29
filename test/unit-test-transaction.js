@@ -199,13 +199,13 @@ class TransactionGetTest extends QuickTransactionTest {
     })
   }
 
-  async _testMultipleGet (inconsistentRead) {
+  async testTransactGet () {
     const newName = uuidv4()
     const [m1, m2] = await db.Transaction.run(async (tx) => {
       const ret = await tx.get([
         TransactionExample.key(this.modelName),
         TransactionExample.key(newName)
-      ], { inconsistentRead })
+      ])
       expect(tx.__writeBatcher.trackedModels.length).toBe(2)
       return ret
     })
@@ -216,57 +216,10 @@ class TransactionGetTest extends QuickTransactionTest {
       return tx.get([
         TransactionExample.data(this.modelName),
         TransactionExample.data(newName)
-      ], { inconsistentRead, createIfMissing: true })
+      ], { createIfMissing: true })
     })
     expect(m3.id).toBe(this.modelName)
     expect(m4.id).toBe(newName)
-  }
-
-  testTransactGet () {
-    return this._testMultipleGet(false)
-  }
-
-  testBatchGet () {
-    return this._testMultipleGet(true)
-  }
-
-  async testBatchGetUnprocessed () {
-    const timeoutMock = jest.fn().mockImplementation((callback, after) => {
-      callback()
-    })
-    const originalSetTimeout = setTimeout
-    global.setTimeout = timeoutMock.bind(global)
-
-    const batchGetMock = jest.fn().mockImplementation(() => {
-      const ret = {
-        Responses: {},
-        UnprocessedKeys: {
-          [TransactionExample.tableName]: { Keys: [{ _id: '456' }] }
-        }
-      }
-      return {
-        promise: async () => {
-          return ret
-        }
-      }
-    })
-    const originalFunc = db.Transaction.prototype.documentClient.batchGet
-    batchGetMock.bind(db.Transaction.prototype.documentClient)
-    db.Transaction.prototype.documentClient.batchGet = batchGetMock
-
-    const result = await db.Transaction.run(async tx => {
-      const fut = tx.get([
-        TransactionExample.key('123'),
-        TransactionExample.key('456')
-      ], { inconsistentRead: true })
-      await expect(fut).rejects.toThrow('Failed to get all items')
-      expect(batchGetMock).toHaveBeenCalledTimes(11)
-      return 112233
-    })
-    expect(result).toBe(112233)
-
-    db.Transaction.prototype.documentClient.batchGet = originalFunc
-    global.setTimeout = originalSetTimeout
   }
 
   async testMultipleGet () {
@@ -307,50 +260,6 @@ class TransactionGetTest extends QuickTransactionTest {
       const m5 = await tx.get(TransactionExample.key('e'))
       expect(m5).toBe(undefined)
     })
-  }
-
-  async testInconsistentReadMissingEntry () {
-    const ids = [uuidv4(), uuidv4(), uuidv4()]
-    await db.Transaction.run(async tx => {
-      await tx.create(TransactionExample, { id: ids[0] })
-      await tx.create(TransactionExample, { id: ids[2] })
-    })
-
-    await db.Transaction.run(async tx => {
-      const result = await tx.get([
-        TransactionExample.key(ids[0]),
-        TransactionExample.key(ids[1]),
-        TransactionExample.key(ids[2])
-      ],
-      { inconsistentRead: true })
-
-      expect(result[0].id).toEqual(ids[0])
-      expect(result[1]).toBeUndefined()
-      expect(result[2].id).toEqual(ids[2])
-    })
-  }
-
-  async testEventualConsistentGet () {
-    const msg = uuidv4()
-    const params = { inconsistentRead: false, createIfMissing: true }
-    const originalFunc = db.Model.__getParams
-    const mock = jest.fn().mockImplementation((ignore, params) => {
-      expect(params.inconsistentRead).toBe(false)
-      // Hard to mock this properly,
-      // so just throw with unique msg
-      // and make sure it's caught outside
-      throw new Error(msg)
-    })
-    db.Model.__getParams = mock
-
-    const result = await db.Transaction.run(async (tx) => {
-      const fut = tx.get(TransactionExample, 'c', params)
-      await expect(fut).rejects.toThrow(msg)
-      return 123
-    })
-    expect(result).toBe(123) // Prove the tx is ran
-
-    db.Model.__getParams = originalFunc
   }
 
   async testGetMissingThenCreate () {
@@ -1423,22 +1332,18 @@ class TransactionCacheModelsTest extends BaseTest {
   }
 
   async testGetMany () {
-    const helper = async (inconsistentRead) => {
-      const id = uuidv4()
-      const ret = await db.Transaction.run(async tx => {
-        tx.enableModelCache()
-        const opts = { createIfMissing: true, inconsistentRead }
-        const m2 = await tx.get(TransactionExample, id, opts)
-        const ms = await tx.get([
-          TransactionExample.data({ id: uuidv4() }),
-          TransactionExample.data({ id })
-        ], opts)
-        return [ms[1], m2]
-      })
-      expect(ret[0]._id).toBe(ret[1]._id)
-    }
-    await helper(true) // batchGet
-    await helper(false) // transactGet
+    const id = uuidv4()
+    const ret = await db.Transaction.run(async tx => {
+      tx.enableModelCache()
+      const opts = { createIfMissing: true }
+      const m2 = await tx.get(TransactionExample, id, opts)
+      const ms = await tx.get([
+        TransactionExample.data({ id: uuidv4() }),
+        TransactionExample.data({ id })
+      ], opts)
+      return [ms[1], m2]
+    })
+    expect(ret[0]._id).toBe(ret[1]._id)
   }
 
   async testDeletedModels () {
@@ -1637,13 +1542,6 @@ class ModelDiffsTest extends BaseTest {
     await this.__helperTestGet(async (tx, ids) => {
       return tx.get(ids.map(id => TransactionExample.data({ id })),
         { createIfMissing: true })
-    })
-  }
-
-  async testBatchGet () {
-    await this.__helperTestGet(async (tx, ids) => {
-      return tx.get(ids.map(id => TransactionExample.data({ id })),
-        { createIfMissing: true, inconsistentRead: true })
     })
   }
 }

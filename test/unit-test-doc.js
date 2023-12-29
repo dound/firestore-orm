@@ -399,11 +399,11 @@ class DBReadmeTest extends BaseTest {
     expect(await getAndCreateIfMissing()).toBe(false) // already exists by now
   }
 
-  async testReadConsistency () {
+  async testRead () {
     const data = { id: uuidv4(), product: 'coffee', quantity: 1 }
     await db.Transaction.run(tx => tx.create(OrderWithNoPrice, data))
     const row = await db.Transaction.run(async tx => tx.get(
-      OrderWithNoPrice, data.id, { inconsistentRead: true }))
+      OrderWithNoPrice, data.id))
     expect(row.id).toEqual(data.id)
     expect(row.product).toEqual(data.product)
     expect(row.quantity).toEqual(data.quantity)

@@ -177,32 +177,6 @@ class SimpleExampleTest extends BaseTest {
       model.id = 'someThingElse'
     }).toThrow()
   }
-
-  async testEventualConsistentGetParams () {
-    const getParams = SimpleExample.__getParams(
-      '123',
-      { inconsistentRead: false })
-    expect(getParams.ConsistentRead).toBe(true)
-  }
-
-  async testEventualConsistentGet () {
-    const msg = uuidv4()
-    const originalFunc = db.Model.__getParams
-    const mock = jest.fn().mockImplementation((ignore, params) => {
-      expect(params.inconsistentRead).toBe(false)
-      // Hard to mock this properly,
-      // so just throw with unique msg
-      // and make sure it's caught outside
-      throw new Error(msg)
-    })
-    db.Model.__getParams = mock
-    const getParams = { inconsistentRead: false, createIfMissing: true }
-    const fut = db.Transaction.run(async tx => {
-      await tx.get(SimpleExample, uuidv4(), getParams)
-    })
-    await expect(fut).rejects.toThrow(Error)
-    db.Model.__getParams = originalFunc
-  }
 }
 
 class NewModelTest extends BaseTest {

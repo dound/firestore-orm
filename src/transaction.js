@@ -466,100 +466,6 @@ class Transaction {
   }
 
   /**
-   * Gets multiple items using DynamoDB's batchGetItems API.
-   * @param {Array<Key>} keys A list of keys to get.
-   * @param {GetParams} params Params used to get items, all items will be
-   *   fetched using the same params.
-   */
-  async __batchGetItems (keys, params) {
-    let reqItems = {}
-    const unorderedModels = []
-    const modelClsLookup = {}
-    for (const key of keys) {
-      modelClsLookup[key.Cls.tableName] = key.Cls
-      const param = key.Cls.__getParams(key.encodedKey, params)
-      const getsPerTable = reqItems[param.TableName] || { Keys: [] }
-      getsPerTable.Keys.push(param.Key)
-      getsPerTable.ConsistentRead = param.ConsistentRead
-      reqItems[param.TableName] = getsPerTable
-    }
-
-    let reqCnt = 0
-    while (Object.keys(reqItems).length !== 0) {
-      if (reqCnt > 10) {
-        throw new Error(`Failed to get all items ${
-          keys.map(k => {
-            return `${k.Cls.name} ${JSON.stringify(k.compositeID)}`
-          })}`)
-      }
-      if (reqCnt !== 0) {
-        // Backoff
-        const millisBackOff = Math.min(100 * reqCnt, 1000)
-        const offset = Math.floor(Math.random() * millisBackOff * 0.2) -
-        millisBackOff * 0.1 // +-0.1 backoff as jitter to spread out conflicts
-        await sleep(millisBackOff + offset)
-      }
-      reqCnt++
-
-      const data = await this.documentClient.batchGet({
-        RequestItems: reqItems
-      }).promise().catch(
-        // istanbul ignore next
-        e => { throw new DBError('batchGet', e) }
-      )
-
-      // Merge results
-      const responses = data.Responses
-      for (const [modelClsName, items] of Object.entries(responses)) {
-        const Cls = modelClsLookup[modelClsName]
-        for (const item of items) {
-          const tempModel = new Cls(ITEM_SOURCE.GET, false, item)
-          unorderedModels.push(tempModel)
-        }
-      }
-
-      // Chain into next batch
-      reqItems = data.UnprocessedKeys
-    }
-
-    // Restore ordering, creat models that are not on server.
-    const models = []
-    for (let idx = 0; idx < keys.length; idx++) {
-      const key = keys[idx]
-      const addModel = () => {
-        for (const model of unorderedModels) {
-          if (model.__tableName === key.Cls.tableName &&
-              model._id === key.encodedKey) {
-            models.push(model)
-            return true
-          }
-        }
-        return false
-      }
-      if (addModel()) {
-        continue
-      }
-      // If we reach here, no model is found for the key.
-      if (params.createIfMissing) {
-        models.push(new key.Cls(ITEM_SOURCE.GET, true, key.vals))
-      } else {
-        models.push(undefined)
-      }
-    }
-
-    // Now track models, so everything is in expected order.
-    for (let index = 0; index < models.length; index++) {
-      const model = models[index]
-      if (model) {
-        this.__writeBatcher.track(model)
-      } else {
-        this.__writeBatcher.track(new NonExistentItem(keys[index]))
-      }
-    }
-    return models
-  }
-
-  /**
    * Fetches model(s) from database.
    * This method supports 3 different signatures.
    *   get(Cls, keyOrDataValues, params)
@@ -570,13 +476,9 @@ class Transaction {
    * a Key when createIfMissing is not true, and Data otherwise.
    *
    * When a list of items is fetched:
-   *   If inconsistentRead is false (the default), DynamoDB's transactGetItems
-   *     API is called for a strongly consistent read. Transactional reads will
-   *     be slower than batched reads.
-   *   If inconsistentRead is true, DynamoDB's batchGetItems API is called.
+   *   Firestore getAll API is called.
    *     Batched fetches are more efficient than calling get with 1 key many
-   *     times, since there is less HTTP request overhead. Batched fetches is
-   *     faster than transactional fetches, but provides a weaker consistency.
+   *     times, since there is less HTTP request overhead.
    *
    * @param {Class} Cls a Model class.
    * @param {String|CompositeID} key Key or keyValues
@@ -624,13 +526,8 @@ class Transaction {
       const fetchedModels = []
       if (keysOrDataToGet.length > 0) {
         if (argIsArray) {
-          if (!params.inconsistentRead) {
-            fetchedModels.push(
-              ...await this.__transactGetItems(keysOrDataToGet, params))
-          } else {
-            fetchedModels.push(
-              ...await this.__batchGetItems(keysOrDataToGet, params))
-          }
+          fetchedModels.push(
+            ...await this.__transactGetItems(keysOrDataToGet, params))
         } else {
           // just fetch the one item that was requested
           fetchedModels.push(await this.__getItem(keysOrDataToGet[0], params))

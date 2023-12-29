@@ -425,7 +425,6 @@ const [skierStats, liftStats] = await tx.get([
   SkierStats.key(resort),
   LiftStats.key(resort)
 ])
-// Caution: Don't pass inconsistentRead=true if you need a consistent snapshot!
 ```
 
 Under the hood, when multiple rows are fetched with strong consistency,
@@ -518,7 +517,6 @@ const order = await orderPromise // block until the data has been retrieved
 
 `tx.get()` accepts an additional options to configure its behavior:
   * `createIfMissing` - see [Create if Missing](#create-if-missing)
-  * `inconsistentRead` - see [Read Consistency](#read-consistency)
 
 
 #### Create if Missing
@@ -542,12 +540,9 @@ wasn't created by someone else in the meantime) or still exists if
 
 
 #### Read Consistency
-Inconsistent reads provide eventual consistency. This allows reading data from any database node (even if they _may_ be out of sync).
-This differs from consistent reads (the default) which provide strong
-consistency but are less efficient (and twice as costly) as inconsistent reads.
-```javascript
-await tx.get(Order, id, { inconsistentRead: true })
-```
+Consistent reads (the default and only option) provide strong
+consistency. In theory, Firestore supports eventually consistent reads but
+these are not exposed in their NodeJS client library so we don't support them.
 
 #### Batch Read
 It is also possible to call `tx.get()` with an array of keys in order to fetch
@@ -569,14 +564,8 @@ const [order1, order2, raceResult] = await tx.get([
 ], { createIfMissing: true })
 ```
 
-* When (`inconsistentRead=`**`false`**), the row are fetched transactionally
-  in a single network request that guarantees we receive a consistent snapshot
+* Data is fetched transactionally and will be a consistent snapshot
   (see [race conditions](#warning-race-conditions) for more about this).
-* When `inconsistentRead=`**`true`** the rows are fetched (usually) with one
-  network request. This is faster than making many separate `tx.get()`
-  requests. This operation
-  is faster than a consistent batch read, but it does not guarantee a
-  consistent snapshot and only provides eventual consistency.
 
 ### Write
 To modify data in the database, simply modify fields on a row created by
