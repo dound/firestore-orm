@@ -5,13 +5,13 @@ const { Key } = require('./key')
  * @param {Object} [fields] field (non-key) values
  */
 class Data extends Key {
-  constructor (Cls, encodedKeys, keyComponents, fields) {
-    super(Cls, encodedKeys, keyComponents)
+  constructor (Cls, encodedKey, keyComponents, fields) {
+    super(Cls, encodedKey, keyComponents)
     this.data = fields
   }
 
   get key () {
-    return new Key(this.Cls, this.encodedKeys, this.keyComponents)
+    return new Key(this.Cls, this.encodedKey, this.keyComponents)
   }
 
   get vals () {

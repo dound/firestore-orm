@@ -4,13 +4,13 @@
 class Key {
   /**
    * @param {Model} Cls a Model class
-   * @param {Object} encodedKeys map of encoded key
+   * @param {Object} encodedKey encoded key
    * @param {Object} keyComponents key component values
    * @private
    */
-  constructor (Cls, encodedKeys, keyComponents) {
+  constructor (Cls, encodedKey, keyComponents) {
     this.Cls = Cls
-    this.encodedKeys = encodedKeys
+    this.encodedKey = encodedKey
     this.keyComponents = keyComponents
   }
 }
@@ -29,8 +29,7 @@ class UniqueKeyList extends Array {
   }
 
   static getKeyHash (key) {
-    const { _id } = key.encodedKeys
-    return `${key.Cls.name}::${_id}`
+    return `${key.Cls.name}::${key.encodedKey}`
   }
 
   push (...keys) {

@@ -180,7 +180,7 @@ class SimpleExampleTest extends BaseTest {
 
   async testEventualConsistentGetParams () {
     const getParams = SimpleExample.__getParams(
-      { id: '123' },
+      '123',
       { inconsistentRead: false })
     expect(getParams.ConsistentRead).toBe(true)
   }
@@ -292,7 +292,7 @@ class IDSchemaTest extends BaseTest {
     const keyOrder = cls.__keyOrder.partition
     expect(() => cls.__encodeCompoundValue(keyOrder, { id: 'X' }))
       .toThrow(S.ValidationError)
-    expect(cls.key('xyz').encodedKeys).toEqual({ _id: 'xyz' })
+    expect(cls.key('xyz').encodedKey).toEqual('xyz')
     expect(cls.__encodeCompoundValue(keyOrder, { id: 'xyz' }))
       .toEqual('xyz')
   }
@@ -789,7 +789,7 @@ class GetArgsParserTest extends BaseTest {
     const id2 = uuidv4()
     keys.push(SimpleExample.key(id1), SimpleExample.key(id2))
     const result = await db.__private.getWithArgs(params,
-      (keys) => keys.map(key => key.encodedKeys))
+      (keys) => keys.map(key => key.encodedKey))
     expect(result).toStrictEqual([{ _id: id1 }, { _id: id2 }])
 
     keys.push(1)
@@ -799,7 +799,7 @@ class GetArgsParserTest extends BaseTest {
     keys.splice(2, 1)
     params.push({})
     const result1 = await db.__private.getWithArgs(params,
-      (keys) => keys.map(key => key.encodedKeys))
+      (keys) => keys.map(key => key.encodedKey))
     expect(result1).toStrictEqual([{ _id: id1 }, { _id: id2 }])
 
     params.push(1)

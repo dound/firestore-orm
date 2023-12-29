@@ -888,7 +888,7 @@ expect(row._id).toBe('123\0Joe')
 // the encoded key is also contained in the output of Model.key():
 const key = RaceResult.key({ runnerName: 'Mel', raceID: 123 })
 expect(key.Cls).toBe(RaceResult)
-expect(key.encodedKeys._id).toBe('123\0Mel')
+expect(key.encodedKey).toBe('123\0Mel')
 ```
 
 For this reason, string values cannot contain the null character. If you need

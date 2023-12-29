@@ -588,7 +588,7 @@ class DBReadmeTest extends BaseTest {
 
     const key = RaceResult.key({ runnerName: 'Mel', raceID: 123 })
     expect(key.Cls).toBe(RaceResult)
-    expect(key.encodedKeys._id).toBe('123\0Mel')
+    expect(key.encodedKey).toBe('123\0Mel')
 
     class StringKeyWithNullBytesExample extends db.Model {
       static KEY = { id: S.obj().prop('raw', S.str) }

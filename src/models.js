@@ -51,7 +51,8 @@ class Model {
     // __cached_attrs has a __Field subclass object for each non-key attribute.
     this.__attr_getters = {}
 
-    // Decode _id (stored in DB ba
+    // Decode _id (stored in DB as string or number, but can be a compound
+    // object composed of multiple values of various types)
     const setupKey = (attrName, keySchema, keyOrder, vals) => {
       const attrVal = vals[attrName]
       if (attrVal === undefined) {
@@ -349,13 +350,6 @@ class Model {
     )
   }
 
-  get __encodedKey () {
-    const ret = {
-      _id: this._id
-    }
-    return ret
-  }
-
   static __getId (vals) {
     const useNumericKey = this.__useNumericKey(this.KEY)
     return this.__encodeCompoundValue(this.__keyOrder.partition, vals, useNumericKey)
@@ -381,18 +375,6 @@ class Model {
     }
 
     return __CompoundField.__encodeName(fields)
-  }
-
-  /**
-   * Returns a map containing the model's computed key values (_id).
-   * Verifies that the key is valid (i.e., it matches the required schema).
-   * @param {Object} vals map of field names to values
-   * @returns map of _id
-   */
-  static __computeKeyAttrMap (vals) {
-    // compute and validate the partition attribute
-    const ret = { _id: this.__getId(vals) }
-    return ret
   }
 
   /**
@@ -441,7 +423,7 @@ class Model {
 
   /**
    * Given a mapping, split compositeKeys from other model fields. Return a
-   * 3-tuple, [encodedKeys, keyComponents, modelData].
+   * 3-tuple, [encodedKey, keyComponents, modelData].
    *
    * @param {Object} data data to be split
    */
@@ -457,20 +439,20 @@ class Model {
         throw new InvalidParameterError('data', 'unknown field ' + key)
       }
     })
-    return [this.__computeKeyAttrMap(keyComponents), keyComponents, modelData]
+    return [this.__getId(keyComponents), keyComponents, modelData]
   }
 
   /**
    * @access package
-   * @param {CompositeID} encodedKeys
+   * @param {String} encodedKey
    * @param {GetParams} options
    * @returns {Object} parameters for a get request to DynamoDB
    */
-  static __getParams (encodedKeys, options) {
+  static __getParams (encodedKey, options) {
     return {
       TableName: this.fullTableName,
       ConsistentRead: !options.inconsistentRead,
-      Key: encodedKeys
+      Key: encodedKey
     }
   }
 
@@ -514,7 +496,7 @@ class Model {
       assert(false, 'This should be unreachable unless something is broken.')
     }
 
-    const item = this.__encodedKey
+    const item = this._id
     const accessedFields = []
     let exprCount = 0
     for (const [key, getter] of Object.entries(this.__attr_getters)) {
@@ -624,7 +606,7 @@ class Model {
     const conditions = []
     const exprAttrNames = {}
     const exprValues = {}
-    const itemKey = this.__encodedKey
+    const itemKey = this._id
     const sets = []
     const removes = []
     const accessedFields = []
@@ -718,7 +700,7 @@ class Model {
   }
 
   __deleteParams () {
-    const itemKey = this.__encodedKey
+    const itemKey = this._id
     const ret = {
       TableName: this.__fullTableName,
       Key: itemKey
@@ -876,7 +858,7 @@ class Model {
    */
   static key (vals) {
     const processedVals = this.__splitKeysAndDataWithPreprocessing(vals)
-    const [encodedKeys, keyComponents, data] = processedVals
+    const [encodedKey, keyComponents, data] = processedVals
 
     // ensure that vals only contained key components (no data components)
     const dataKeys = Object.keys(data)
@@ -885,7 +867,7 @@ class Model {
       throw new InvalidParameterError('vals',
         `received non-key fields: ${dataKeys.join(', ')}`)
     }
-    return new Key(this, encodedKeys, keyComponents)
+    return new Key(this, encodedKey, keyComponents)
   }
 
   /**
@@ -1028,7 +1010,7 @@ class Model {
     const ret = {}
     if (dbKeys) {
       if (!initial || !this.isNew) {
-        Object.assign(ret, this.__encodedKey)
+        Object.assign(ret, this._id)
       } else {
         ret._id = undefined
       }
@@ -1068,7 +1050,7 @@ class NonExistentItem {
   }
 
   get _id () {
-    return this.key.encodedKeys._id
+    return this.key.encodedKey
   }
 
   get __fullTableName () {
@@ -1086,7 +1068,7 @@ class NonExistentItem {
     }
     return {
       TableName: this.key.Cls.fullTableName,
-      Key: this.key.encodedKeys,
+      Key: this.key.encodedKey,
       ConditionExpression: condition,
       ExpressionAttributeNames: attrNames
     }
@@ -1098,7 +1080,7 @@ class NonExistentItem {
    */
   toString () {
     return makeItemString(
-      this.key.Cls, this.key.encodedKeys._id)
+      this.key.Cls, this.key.encodedKey)
   }
 
   getSnapshot () {

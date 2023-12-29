@@ -402,7 +402,7 @@ class Transaction {
    * @param {GetParams} params Params for how to get the item
    */
   async __getItem (key, params) {
-    const getParams = key.Cls.__getParams(key.encodedKeys, params)
+    const getParams = key.Cls.__getParams(key.encodedKey, params)
     const data = await this.documentClient.get(getParams).promise()
       .catch(
         // istanbul ignore next
@@ -429,7 +429,7 @@ class Transaction {
   async __transactGetItems (keys, params) {
     const txItems = []
     for (const key of keys) {
-      const param = key.Cls.__getParams(key.encodedKeys, params)
+      const param = key.Cls.__getParams(key.encodedKey, params)
       delete param.ConsistentRead // Omit for transactGetItems.
       txItems.push({
         Get: param
@@ -478,7 +478,7 @@ class Transaction {
     const modelClsLookup = {}
     for (const key of keys) {
       modelClsLookup[key.Cls.fullTableName] = key.Cls
-      const param = key.Cls.__getParams(key.encodedKeys, params)
+      const param = key.Cls.__getParams(key.encodedKey, params)
       const getsPerTable = reqItems[param.TableName] || { Keys: [] }
       getsPerTable.Keys.push(param.Key)
       getsPerTable.ConsistentRead = param.ConsistentRead
@@ -530,7 +530,7 @@ class Transaction {
       const addModel = () => {
         for (const model of unorderedModels) {
           if (model.__fullTableName === key.Cls.fullTableName &&
-              model._id === key.encodedKeys._id) {
+              model._id === key.encodedKey) {
             models.push(model)
             return true
           }
@@ -607,7 +607,7 @@ class Transaction {
         for (const keyOrData of arr) {
           const cachedModel = this.__writeBatcher.getModel(
             keyOrData.Cls.fullTableName,
-            keyOrData.encodedKeys._id
+            keyOrData.encodedKey
           )
           if (cachedModel) {
             if (!cachedModel.__src.canBeCached || cachedModel.__toBeDeleted) {
@@ -644,7 +644,7 @@ class Transaction {
           for (let index = 0; index < keysOrDataToGet.length; index++) {
             const toGetKeyOrData = keysOrDataToGet[index]
             if (tableName === toGetKeyOrData.Cls.fullTableName &&
-              id === toGetKeyOrData.encodedKeys._id) {
+              id === toGetKeyOrData.encodedKey) {
               return fetchedModels[index]
             }
           }
@@ -660,7 +660,7 @@ class Transaction {
         for (const keyOrData of arr) {
           ret.push(findModel(
             keyOrData.Cls.fullTableName,
-            keyOrData.encodedKeys._id
+            keyOrData.encodedKey
           ))
         }
       } else {
@@ -972,7 +972,7 @@ class Transaction {
       const before = model.getSnapshot({ initial: true, dbKeys: true })
       const after = model.getSnapshot({ initial: false, dbKeys: true })
       const modelName = model.key ? model.key.Cls.name : model.constructor.name
-      const key = model.key ? model.key.encodedKeys : model.__encodedKey
+      const key = model.key ? model.key.encodedKey : model._id
       allBefore.push({ [modelName]: { ...key, data: before } })
       allAfter.push({ [modelName]: { ...key, data: after } })
       const diff = detailedDiff(before, after)
