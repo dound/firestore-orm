@@ -14,7 +14,7 @@ const {
   ModelAlreadyExistsError,
   ModelDeletedTwiceError
 } = require('./errors')
-const { __Field, SCHEMA_TYPE_TO_FIELD_CLASS_MAP, __CompoundField } = require('./fields')
+const { __Field, SCHEMA_TYPE_TO_FIELD_CLASS_MAP } = require('./fields')
 const { Key } = require('./key')
 const {
   validateValue,
@@ -71,13 +71,6 @@ class Model {
       this.__addField(name, opts, vals)
     }
 
-    for (let field of this.constructor.__compoundFields) {
-      if (typeof (field) === 'string') {
-        field = [field]
-      }
-      this.__addCompoundField(field, isNew)
-    }
-
     Object.seal(this)
   }
 
@@ -93,18 +86,7 @@ class Model {
   }
 
   __addField (name, opts, vals) {
-    let valSpecified = Object.hasOwnProperty.call(vals, name)
-    let val = vals[name]
-    if (!valSpecified) {
-      for (const [encodedName, encodedVal] of Object.entries(vals)) {
-        const fieldData = __CompoundField.__decodeValues(encodedName, encodedVal)
-        if (Object.hasOwnProperty.call(fieldData, name)) {
-          valSpecified = true
-          val = fieldData[name]
-          break
-        }
-      }
-    }
+    const valSpecified = Object.hasOwnProperty.call(vals, name)
     const getCachedField = () => {
       if (this.__cached_attrs[name]) {
         return this.__cached_attrs[name]
@@ -115,9 +97,9 @@ class Model {
       const field = new Cls({
         name,
         opts,
-        val,
+        val: vals[name],
         valIsFromDB: !this.isNew,
-        valSpecified,
+        valSpecified: valSpecified,
         isForUpdate: this.__src.isUpdate,
         isForDelete: this.__src.isDelete
       })
@@ -131,34 +113,6 @@ class Model {
     }
     Object.defineProperty(this, name, {
       get: () => {
-        const field = getCachedField()
-        return field.get()
-      },
-      set: (val) => {
-        const field = getCachedField()
-        field.set(val)
-      }
-    })
-  }
-
-  __addCompoundField (fieldNames, isNew) {
-    const name = this.constructor.__encodeCompoundFieldName(fieldNames)
-    if (this.__attr_getters[name] !== undefined || name === '_id') {
-      return
-    }
-    const fields = fieldNames.map(field => this.__attr_getters[field]())
-    const getCachedField = () => {
-      if (this.__cached_attrs[name]) {
-        return this.__cached_attrs[name]
-      }
-      const field = new __CompoundField({ name, isNew, fields })
-      this.__cached_attrs[name] = field
-      return field
-    }
-    this.__attr_getters[name] = getCachedField
-    getCachedField()
-    Object.defineProperty(this, name, {
-      get: (...args) => {
         const field = getCachedField()
         return field.get()
       },
@@ -257,7 +211,6 @@ class Model {
     // this model. This is the combination of attributes (keys) defined by KEY
     // and FIELDS.
     this._attrs = {}
-    this.__compoundFields = new Set()
     this.__KEY_COMPONENT_NAMES = new Set()
     const partitionKeys = new Set(this.__keyOrder)
     for (const [fieldName, schema] of Object.entries(this.schema.objectSchemas)) {
@@ -336,28 +289,6 @@ class Model {
   static __getId (vals) {
     const useNumericKey = this.__useNumericKey(this.KEY)
     return this.__encodeCompoundValue(this.__keyOrder, vals, useNumericKey)
-  }
-
-  /**
-   * Generate a compound field name given a list of fields.
-   * For compound field containing a single field that is not a KEY,
-   * we use the same name as the original field to reduce data duplication.
-   * We also auto-detect if _id can be re-used
-   *
-   * @param [ fields ] a list of string denoting the fields
-   * @returns a string denoting the compound field's internal name
-   */
-  static __encodeCompoundFieldName (fields) {
-    if (fields.length === 1 && this.FIELDS[fields[0]] &&
-      !['array', 'object', 'boolean'].includes(this.FIELDS[fields[0]].getProp('type'))) {
-      return fields[0]
-    }
-
-    if (Object.keys(this.KEY).sort().join('\0') === fields.sort().join('\0')) {
-      return '_id'
-    }
-
-    return __CompoundField.__encodeName(fields)
   }
 
   /**
@@ -988,7 +919,7 @@ class Model {
     }
     for (const [name, getter] of Object.entries(this.__attr_getters)) {
       const field = getter()
-      if (!field || field instanceof __CompoundField) {
+      if (!field) {
         continue
       }
       if (field.isKey) {

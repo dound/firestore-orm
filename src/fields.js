@@ -2,10 +2,9 @@ const assert = require('assert')
 
 const { FieldValue } = require('@google-cloud/firestore')
 const deepeq = require('fast-deep-equal')
-const jsonStringify = require('fast-json-stable-stringify')
 const deepcopy = require('rfdc')()
 
-const { InvalidFieldError, InvalidOptionsError, NotImplementedError, InvalidParameterError } = require('./errors')
+const { InvalidFieldError, InvalidOptionsError, NotImplementedError } = require('./errors')
 const { validateValue } = require('./utils')
 
 /**
@@ -512,148 +511,6 @@ class ArrayField extends __Field {
   }
 }
 
-/**
- * Internal object used to create a compound field containing one or more fields
- *
- * @private
- * @memberof Internal
- */
-class __CompoundField extends __BaseField {
-  constructor ({ name, isNew, fields }) {
-    super()
-    if (fields.every(field => field instanceof __Field) === false) {
-      throw new InvalidFieldError(name, 'Compound field can contain only Field objects')
-    }
-    this.name = name
-    this.__fields = fields
-    this.__isNew = isNew
-    this.__initialValue = this.__value
-  }
-
-  get mutated () {
-    // in some cases, __initialValue and __value are equal, but we still want
-    // write to the db, because the value cached here are used to populate
-    // other fields. To detect changes correctly, we can't use __value, because
-    // if multiple fields are undefined, the overall value is still undefined,
-    // but in reality, a field might have been undefined in this transaction.
-    return this.__isNew ||
-      (this.__mayHaveMutated && this.__fields.some(field => field.mutated))
-  }
-
-  get __mayHaveMutated () {
-    return this.__isNew || this.__fields.some(field => field.__mayHaveMutated)
-  }
-
-  get accessed () {
-    return this.__fields.some(field => field.accessed)
-  }
-
-  /**
-  * Generates the value for the compound property. If any of the underlying
-  * field is undefined, compound value returns undefined.
-  * Currently, it supports only generated fields used in Index.
-  *
-  * @returns encoded value for the compound field
-  **/
-  get __value () {
-    const allVal = {}
-    for (const field of this.__fields) {
-      if (field.__value === undefined) {
-        return undefined
-      }
-      allVal[field.name] = field.__value
-    }
-    return this.constructor.__encodeValues(Object.keys(allVal), allVal)
-  }
-
-  static __encodeName (fields) {
-    return ['_c', ...fields.sort()].join('_')
-  }
-
-  static __encodeValues (fields, values) {
-    const pieces = []
-    fields = fields.sort()
-    if (fields.length === 1 && typeof (values[fields[0]]) === 'number') {
-      return values[fields[0]]
-    }
-    for (const field of fields) {
-      const val = values[field]
-      if (val === undefined) {
-        throw new InvalidFieldError(field, 'must be provided')
-      }
-      if (typeof (val) === 'string') {
-        if (val.indexOf('\0') !== -1) {
-          throw new InvalidFieldError(field,
-            'cannot put null bytes in strings in compound values')
-        }
-        pieces.push(val)
-      } else {
-        pieces.push(jsonStringify(val))
-      }
-    }
-    return pieces.join('\0')
-  }
-
-  static __decodeValues (propName, propVal) {
-    if (!propName.startsWith('_c')) {
-      // the propName provided doesn't match the name format for compound field
-      // We will simply return with no data
-      return {}
-    }
-    const props = propName.substring(3).split('_')
-    const data = {}
-    if (typeof (propVal) === 'number') {
-      data[props[0]] = propVal
-      return data
-    }
-    const vals = propVal.split('\0')
-    if (props.length !== vals.length) {
-      throw new InvalidParameterError('Trying to decode compound field value with unequal amount of properties')
-    }
-    props.forEach((key, index) => {
-      const val = vals[index]
-      try {
-        data[key] = JSON.parse(val)
-      } catch (error) {
-        // val was native int/string type
-        data[key] = val
-      }
-    })
-    return data
-  }
-
-  get () {
-    return this.__value
-  }
-
-  set (val) {
-    throw new InvalidFieldError(this.name, 'Compound fields are immutable.')
-  }
-
-  __updateExpression (exprKey) {
-    const val = this.__value
-    if (!this.mutated || (this.__isNew && val === undefined)) {
-      return []
-    }
-
-    if (val === undefined) {
-      return [undefined, {}, true]
-    }
-
-    return [
-      `${this.__awsName}=${exprKey}`,
-      { [exprKey]: val },
-      false
-    ]
-  }
-
-  validate () {
-    // All the underlying fields are validated in it's own section, no need to
-    // re-validate them here
-    return true
-  }
-}
-
 const SCHEMA_TYPE_TO_FIELD_CLASS_MAP = {
   array: ArrayField,
   boolean: BooleanField,
@@ -672,6 +529,5 @@ module.exports = {
   BooleanField,
   StringField,
   ObjectField,
-  __CompoundField,
   SCHEMA_TYPE_TO_FIELD_CLASS_MAP
 }
