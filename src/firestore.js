@@ -21,8 +21,6 @@ const {
   ObjectField,
   StringField
 } = require('./fields')
-const Filter = require('./filter')
-const { Query, Scan } = require('./iterators')
 const { UniqueKeyList } = require('./key')
 const { Model } = require('./models')
 const {
@@ -51,8 +49,6 @@ function setup (firestoreClient) {
   const clsWithDBAccess = [
     __WriteBatcher,
     Model,
-    Query,
-    Scan,
     Transaction
   ]
   clsWithDBAccess.forEach(Cls => {
@@ -85,7 +81,6 @@ function setup (firestoreClient) {
     toExport.__private = {
       __Field,
       __WriteBatcher,
-      Filter,
       fields: [
         ArrayField,
         BooleanField,
@@ -94,9 +89,7 @@ function setup (firestoreClient) {
         StringField
       ],
       getWithArgs,
-      ITEM_SOURCE,
-      Query,
-      Scan
+      ITEM_SOURCE
     }
   }
   return toExport

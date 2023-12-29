@@ -17,7 +17,6 @@ const {
   WriteAttemptedInReadOnlyTxError,
   ModelTrackedTwiceError
 } = require('./errors')
-const { Query, Scan } = require('./iterators')
 const { Key } = require('./key')
 const { Model, NonExistentItem } = require('./models')
 const { sleep, ITEM_SOURCE, loadOptionDefaults } = require('./utils')
@@ -800,34 +799,6 @@ class Transaction {
         throw new InvalidParameterError('args', 'Must be models and keys')
       }
     }
-  }
-
-  /**
-   * Create a handle for applications to scan DB items.
-   * @param {Model} ModelCls A model class.
-   * @param {IteratorOptions} params.options Iterator options
-   * @return Scan handle. See {@link __DBIterator} for details.
-   */
-  scan (ModelCls, options) {
-    return new Scan({
-      ModelCls,
-      writeBatcher: this.__writeBatcher,
-      options
-    })
-  }
-
-  /**
-   * Create a handle for applications to query DB items.
-   * @param {Model} ModelCls A model class.
-   * @param {IteratorOptions} params.options Iterator options
-   * @return Query handle. See {@link __DBIterator} for details.
-   */
-  query (ModelCls, options) {
-    return new Query({
-      ModelCls,
-      writeBatcher: this.__writeBatcher,
-      options
-    })
   }
 
   __reset () {
