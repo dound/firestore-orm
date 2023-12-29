@@ -82,8 +82,6 @@ const ITEM_SOURCE = {
   CREATE: { isCreate: true, canBeCached: true },
   DELETE: { isDelete: true, canBeCached: false }, // Delete by key creates a local model
   GET: { isGet: true, canBeCached: true },
-  QUERY: { isQuery: true, canBeCached: true },
-  SCAN: { isScan: true, canBeCached: true },
   UPDATE: { isUpdate: true, canBeCached: false }
 }
 
