@@ -175,7 +175,7 @@ class __Field extends __BaseField {
    * @param {boolean} valSpecified whether val was specified (if this is
    *   true, then the field was present)
    * @param {boolean} isForUpdate whether this field is part of an update
-   * @param {boolean} isForUpdate whether this field is part of an delete
+   * @param {boolean} isForDelete whether this field is part of an delete
    */
   constructor ({
     idx,
