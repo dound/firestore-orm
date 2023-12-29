@@ -981,61 +981,16 @@ class Model {
   }
 
   /**
-   * Checks if the model has expired due to TTL.
-   *
-   * @private
-   * @return true if TTL is turned on for the model, and there is a expiration
-   *   time set for the current model, and the expiration time is smaller than
-   *   current time.
-   */
-  get __hasExpired () {
-    if (!this.constructor.EXPIRE_EPOCH_FIELD) {
-      return false
-    }
-    const expirationTime = this.getField(this.constructor.EXPIRE_EPOCH_FIELD)
-      .__value
-    if (!expirationTime) {
-      return false
-    }
-    const currentSecond = Math.ceil(new Date().getTime() / 1000)
-    // When TTL is more than 5 years in the past, TTL is disabled
-    // https://docs.amazonaws.cn/en_us/amazondynamodb/latest/developerguide/
-    // time-to-live-ttl-before-you-start.html
-    const lowerBound = currentSecond - 157680000
-    return expirationTime > lowerBound && expirationTime <= currentSecond
-  }
-
-  /**
    * @return a [ConditionExpression, ExpressionAttributeNames,
    *   ExpressionAttributeValues] tuple to make sure the model
    *   does not exist on server.
    */
   __nonexistentModelCondition () {
-    let condition = 'attribute_not_exists(#_id)'
+    const condition = 'attribute_not_exists(#_id)'
     const attrNames = {
       '#_id': '_id'
     }
     let attrValues
-    if (this.constructor.EXPIRE_EPOCH_FIELD) {
-      const expireField = this.getField(this.constructor.EXPIRE_EPOCH_FIELD)
-      const currentSecond = Math.ceil(new Date().getTime() / 1000)
-
-      // When TTL is more than 5 years in the past, TTL is disabled
-      // https://docs.amazonaws.cn/en_us/amazondynamodb/latest/developerguide/
-      // time-to-live-ttl-before-you-start.html
-      const lowerBound = currentSecond - 157680000
-      const awsName = expireField.__awsName
-      condition = `(${condition} OR
-        (attribute_exists(${awsName}) AND
-         :_ttlMin <= ${awsName} AND
-         ${awsName} <= :_ttlMax))`
-      attrNames[awsName] = expireField.name
-      attrValues = {
-        ':_ttlMin': lowerBound,
-        ':_ttlMax': currentSecond
-      }
-    }
-
     return [
       condition,
       attrNames,

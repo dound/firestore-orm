@@ -415,17 +415,7 @@ class Transaction {
     }
     const isNew = !data.Item
     const vals = data.Item || key.vals
-    let model = new key.Cls(ITEM_SOURCE.GET, isNew, vals)
-    if (model.__hasExpired) {
-      // DynamoDB may not have deleted the model promptly, just treat it as if
-      // it's not on server.
-      if (params.createIfMissing) {
-        model = new key.Cls(ITEM_SOURCE.GET, true, key.vals)
-      } else {
-        this.__writeBatcher.track(new NonExistentItem(key))
-        return undefined
-      }
-    }
+    const model = new key.Cls(ITEM_SOURCE.GET, isNew, vals)
     this.__writeBatcher.track(model)
     return model
   }
@@ -461,21 +451,10 @@ class Transaction {
         models[idx] = undefined
         continue
       }
-      let model = new key.Cls(
+      const model = new key.Cls(
         ITEM_SOURCE.GET,
         !data.Item,
         data.Item || key.vals)
-
-      if (model.__hasExpired) {
-        if (params.createIfMissing) {
-          model = new key.Cls(
-            ITEM_SOURCE.GET,
-            true,
-            key.vals)
-        } else {
-          model = undefined
-        }
-      }
 
       models[idx] = model
       if (model) {
@@ -536,9 +515,7 @@ class Transaction {
         const Cls = modelClsLookup[modelClsName]
         for (const item of items) {
           const tempModel = new Cls(ITEM_SOURCE.GET, false, item)
-          if (!tempModel.__hasExpired) {
-            unorderedModels.push(tempModel)
-          }
+          unorderedModels.push(tempModel)
         }
       }
 

@@ -43,7 +43,6 @@ high-level abstractions to structure data and prevent race conditions.
 - [Niche Concepts](#niche-concepts)
   - [Key Encoding](#key-encoding)
   - [Nested Transactions are NOT Nested](#nested-transactions-are-not-nested)
-  - [Time To Live](#time-to-live)
   - [Table Creation \& Persistence](#table-creation--persistence)
   - [Indexes](#indexes)
     - [Eventual Consistency](#eventual-consistency)
@@ -919,36 +918,6 @@ await Transaction.run(async outerTx => {
 The inner transaction, if it commits, will commit first. If the outer
 transaction is retried, the inner transaction _will be run additional times_.
 
-## Time To Live
-DynamoDB supports Time-To-Live (TTL) per row. When the current timestamp
-reaches a row's TTL, the row is automatically removed from the database
-without incurring additional costs. This is useful when some data can be safely
-removed based on how long they have been stored. For example, to remember
-places I've visited in the past 7 days, I can store each place as a DB row and
-set the TTL to be 7 days from the current time. To retrieve places I can easily
-scan all places in the database without filtering data.
-
-A model can have one integer or double field to store an epoch timestamp in
-seconds as the expiration time. The field is designated via the
-`EXPIRE_EPOCH_FIELD` property. The field must be integer or double
-type.
-
-NOTE: When the timestamp is more than 5 years in the past, the row will not be
-removed.So to keep a row indefinitely in a TTL enabled table, you may safely
-set the TTL field to 0.
-
-```javascript <!-- embed:./test/unit-test-model.js:scope:TTLExample -->
-class TTLExample extends db.Model {
-  static FIELDS = {
-    expirationTime: S.int,
-    doubleTime: S.double,
-    notTime: S.str.optional(),
-    optionalTime: S.int.optional()
-  }
-
-  static EXPIRE_EPOCH_FIELD = 'expirationTime'
-}
-```
 
 ## Table Creation & Persistence
 When the localhost server runs, it generates `config/resources.yml` based on

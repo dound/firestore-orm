@@ -1299,10 +1299,10 @@ class SnapshotTest extends BaseTest {
 class UniqueKeyListTest extends BaseTest {
   testDedup () {
     const id = uuidv4()
-    const keys = new db.UniqueKeyList(NoTTLExample.key(id))
-    keys.push(NoTTLExample.key(id), NoTTLExample.key(uuidv4()))
+    const keys = new db.UniqueKeyList(SimpleExample.key(id))
+    keys.push(SimpleExample.key(id), SimpleExample.key(uuidv4()))
     expect(keys.length).toBe(2)
-    keys.push(NoTTLExample.key(id))
+    keys.push(SimpleExample.key(id))
     expect(keys.length).toBe(2)
   }
 
