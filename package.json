@@ -1,5 +1,5 @@
 {
-  "name": "dound/firestoredb",
+  "name": "firestoredb",
   "version": "0.1",
   "description": "Firestore DB Library",
   "license": "Apache-2.0",
