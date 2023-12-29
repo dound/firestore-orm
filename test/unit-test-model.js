@@ -1186,33 +1186,6 @@ class OptDefaultExampleTest extends BaseTest {
   }
 }
 
-class OptionalFieldConditionTest extends BaseTest {
-  async testOptFieldCondition () {
-    class OptNumExample extends db.Model {
-      static get FIELDS () {
-        return {
-          n: S.int.optional()
-        }
-      }
-    }
-
-    const id = uuidv4()
-    await db.Transaction.run(tx => {
-      tx.create(OptNumExample, { id })
-    })
-    await db.Transaction.run(async tx => {
-      const row = await tx.get(OptNumExample, id)
-      if (row.n === undefined) {
-        row.n = 5
-      }
-      const field = row.getField('n')
-      const [condition, vals] = field.__conditionExpression(':_1')
-      expect(condition).toBe(`attribute_not_exists(${field.__awsName})`)
-      expect(vals).toEqual({})
-    })
-  }
-}
-
 class SnapshotTest extends BaseTest {
   async beforeAll () {
     await super.beforeAll()
@@ -1330,7 +1303,6 @@ runTests(
   KeyTest,
   NewModelTest,
   OptDefaultExampleTest,
-  OptionalFieldConditionTest,
   SimpleExampleTest,
   SnapshotTest,
   WriteBatcherTest,

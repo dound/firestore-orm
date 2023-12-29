@@ -562,10 +562,6 @@ class DBReadmeTest extends BaseTest {
           // less scalable than "increment quantity by 1".
           // x.quantity += 1
         }
-        const quantityField = x.getField('quantity')
-        const [cond, vals] = quantityField.__conditionExpression(':_1')
-        expect(vals).toEqual({ ':_1': origValue })
-        expect(cond).toBe(quantityField.__awsName + '=:_1')
       })
       await db.Transaction.run(async tx => {
         const order = await tx.get(OrderWithNoPrice, id)
@@ -616,7 +612,6 @@ class DBReadmeTest extends BaseTest {
         // here we read and write the data, so the library will generate an
         // update like "if count was N then set count to N + 1"
         counter.count += 1
-        expect(counter.getField('count').canUpdateWithoutCondition).toBe(false)
       })
     }
 
@@ -627,7 +622,6 @@ class DBReadmeTest extends BaseTest {
         // will generate an update like "increment quantity by 1" which will
         // succeed no matter what the original value was
         counter.getField('count').incrementBy(1)
-        expect(counter.getField('count').canUpdateWithoutCondition).toBe(true)
       })
     }
 
@@ -641,9 +635,6 @@ class DBReadmeTest extends BaseTest {
           // isn't any faster because we have to generate the condition
           // expression due to the above if condition which read the count var
           counter.getField('count').incrementBy(1)
-
-          expect(counter.getField('count').canUpdateWithoutCondition).toBe(
-            false)
         }
       })
     }

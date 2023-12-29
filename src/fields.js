@@ -1,5 +1,6 @@
 const assert = require('assert')
 
+const { FieldValue } = require('@google-cloud/firestore')
 const deepeq = require('fast-deep-equal')
 const jsonStringify = require('fast-json-stable-stringify')
 const deepcopy = require('rfdc')()
@@ -45,10 +46,6 @@ class __FieldInterface {
   }
 
   __updateExpression (exprKey) {
-    throw new NotImplementedError()
-  }
-
-  __conditionExpression (exprKey) {
     throw new NotImplementedError()
   }
 
@@ -288,42 +285,6 @@ class __Field extends __BaseField {
   }
 
   /**
-   * Whether to condition the transaction on this field's initial value.
-   */
-  get canUpdateWithoutCondition () {
-    return (
-      // keys uniquely identify an item; all keys generate a condition check
-      !this.isKey &&
-      // if an item's value is read before it is modified, then we must verify
-      // that it's value doesn't change
-      !this.__readInitialValue)
-  }
-
-  /**
-   * Generates a [ConditionExpression, ExpressionAttributeValues] pair.
-   *
-   * @access package
-   * @param {String} exprKey A key to use to link values in ConditionExpression
-   *   and ExpressionAttributeValues
-   * @returns {Array} [ConditionExpression, ExpressionAttributeValues]
-   */
-  __conditionExpression (exprKey) {
-    if (this.canUpdateWithoutCondition) {
-      return []
-    }
-    if (this.__initialValue === undefined) {
-      return [
-        `attribute_not_exists(${this.__awsName})`,
-        {}
-      ]
-    }
-    return [
-      `${this.__awsName}=${exprKey}`,
-      { [exprKey]: this.__initialValue }
-    ]
-  }
-
-  /**
    * This method compares initialValue against the current value.
    *
    * @returns if value was changed.
@@ -498,19 +459,14 @@ class NumberField extends __Field {
       // if the field didn't have an old value, we can't increment it (DynamoDB
       // will throw an error if we try to do X=X+1 when X has no value)
       this.__initialValue !== undefined &&
-      // if we're generating a condition on the initial value, there's no
-      // benefit to do an increment so we can just do a standard set
-      this.canUpdateWithoutCondition)
+      // if we read the value, then it's not a blind increment
+      !this.__readInitialValue)
   }
 
   __updateExpression (exprKey) {
     // if we're locking, there's no point in doing an increment
     if (this.canUpdateWithIncrement) {
-      return [
-        `${this.__awsName}=${this.__awsName}+${exprKey}`,
-        { [exprKey]: this.__diff },
-        false
-      ]
+      return FieldValue.increment(this.__diff)
     }
     return super.__updateExpression(exprKey)
   }
@@ -589,7 +545,6 @@ class __CompoundField extends __BaseField {
     this.__idx = idx
     this.__isNew = isNew
     this.__initialValue = this.__value
-    this.canUpdateWithoutCondition = true
   }
 
   get __awsName () {
@@ -711,10 +666,6 @@ class __CompoundField extends __BaseField {
       { [exprKey]: val },
       false
     ]
-  }
-
-  __conditionExpression (exprKey) {
-    return []
   }
 
   validate () {
