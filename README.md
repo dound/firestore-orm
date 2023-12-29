@@ -13,7 +13,6 @@ high-level abstractions to structure data and prevent race conditions.
     - [Custom Methods](#custom-methods)
   - [Transactions](#transactions)
     - [ACID Properties](#acid-properties)
-    - [Automatic Optimistic Locking (AOL)](#automatic-optimistic-locking-aol)
     - [Retries](#retries)
     - [Read-Only](#read-only)
     - [Pre-Commit Hook](#pre-commit-hook)
@@ -306,8 +305,7 @@ expect(order.totalPrice(0.1)).toBeCloseTo(440)
 A transaction is a function which contains logic and database operations. A
 transaction guarantees that all _database_ side effects (e.g., updating a
 row) execute in an all-or-nothing manner, providing both
-[ACID](#acid-properties) properties as well as
-[Automatic Optimistic Locking](#automatic-optimistic-locking-aol).
+[ACID](#acid-properties) properties.
 
 
 ### ACID Properties
@@ -324,53 +322,6 @@ traditional, transaction-processing databases:
  * _Durability_ - if a transaction succeeds, any data that is changed will be
    remembered. There is no chance of it being lost (e.g., due to a power
    outage).
-
-
-### Automatic Optimistic Locking (AOL)
-AOL ensures that a transaction succeeds only if accessed fields have not
-changed. This relieves developer's from the time-consuming and error-prone
-process of manually writing the necessary
-[conditions checks](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.ConditionExpressions.html)
-to prevent many insidious and hard-to-debug race condition bugs.
-
-_Contention_ occurs when a transaction's inputs change before the transaction
-is completed. When this happens, a transaction will fail (if our inputs
-changed, then AOL assumes any updates we requested may no longer be valid). If
-a transaction fails, the default behavior is to automatically retry it up to
-three times. If all the retries fail due to contention, the transaction will
-throw a `db.TransactionFailedError` exception. If there is some permanent error (e.g,
-you tried to create a new row but it already exists) then the transaction will
-throw a `db.ModelAlreadyExistsError` exception without additional retries.
-
-Consider this guestbook model:
-```javascript
-class Guestbook extends db.Model {
-  static FIELDS = { names: S.arr(S.str) }
-}
-```
-
-If two (or more!) transactions try to update the guestbook at the same time,
-it's vital that each successfully adds a name to the guestbook exactly once.
-Without transactions, something like this could happen:
-
-1. Alice and Bob both get the current names in the guestbook (an empty array).
-1. Alice adds her name to the empty array, updating the DB to `names=["Alice"]`
-1. Bob adds his name to the empty array, updating the DB to `names=["Bob"]`
-1. The database is left with just one name in the guestbook. Uh-oh!
-
-AOL places _conditions_ on the update to ensure race conditions like this
-cannot occur. AOL effectively changes the above requests to:
-
-2. _If_ the guestbook is empty, then update it to `names=["Alice"]`.
-2. _If_ the guestbook is empty, then update it to `names=["Bob"]`..
-
-Exactly one of these two will succeed, causing the guestbook to no longer be
-empty. The other transaction to fail because the condition ("If the guestbook
-is empty") will not be true. It will retry, fetching the guestbook again and
-creating a new request for the database:
-
-3. If the guestbook is `names=["Alice"]`, then update it to
-   `names=["Alice", "Bob"]`.
 
 
 ### Retries
