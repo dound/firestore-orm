@@ -137,11 +137,6 @@ async function txCreate (...args) {
 class SimpleExample extends db.Model {}
 
 class SimpleExampleTest extends BaseTest {
-  async beforeAll () {
-    // Create new table should work
-    await SimpleExample.createResources()
-  }
-
   testInvalidSetup () {
     function check (badSrc) {
       expect(() => {
@@ -170,18 +165,12 @@ class SimpleExampleTest extends BaseTest {
     })).rejects.toThrow(TypeError)
   }
 
-  async testRecreatingTable () {
-    // Re-creating the same table shouldn't error out
-    await SimpleExample.createResources()
-  }
-
   async testDebugFunctionExport () {
     // Only export in debugging
     jest.resetModules()
     const oldVal = process.env.INDEBUGGER
     process.env.INDEBUGGER = 0
     const tempDB = require('../src/default-db')
-    expect(tempDB.Model.createResources).toBeDefined()
     expect(tempDB.Model.__private).toBe(undefined)
     process.env.INDEBUGGER = oldVal
     jest.resetModules()
@@ -308,13 +297,6 @@ class IntKeyExample extends db.Model {
 }
 
 class IDSchemaTest extends BaseTest {
-  async beforeAll () {
-    await IDWithSchemaExample.createResources()
-    await CompoundIDExample.createResources()
-    await ObjKeyExample.createResources()
-    await IntKeyExample.createResources()
-  }
-
   async testSimpleIDWithSchema () {
     const cls = IDWithSchemaExample
     const id = 'xyz' + uuidv4()
@@ -417,7 +399,6 @@ class BasicExample extends db.Model {
 
 class WriteTest extends BaseTest {
   async beforeAll () {
-    await BasicExample.createResources()
     this.modelName = uuidv4()
     await txGet(BasicExample, this.modelName, model => {
       model.noRequiredNoDefault = 0
@@ -541,7 +522,6 @@ class WriteTest extends BaseTest {
 
 class ConditionCheckTest extends BaseTest {
   async beforeAll () {
-    await BasicExample.createResources()
     this.modelName = uuidv4()
     await txGet(BasicExample, this.modelName)
   }
@@ -593,13 +573,6 @@ class RangeKeyExample extends db.Model {
 }
 
 class KeyTest extends BaseTest {
-  async beforeAll () {
-    await Promise.all([
-      SimpleExample.createResources(),
-      RangeKeyExample.createResources()
-    ])
-  }
-
   async testGetNoCreateIfMissingWithExcessFields () {
     const fut = db.Transaction.run(async tx => {
       // can't specify field like "n" when reading unless we're doing a
@@ -775,11 +748,6 @@ class IndexJsonExample extends db.Model {
 }
 
 class JSONExampleTest extends BaseTest {
-  async beforeAll () {
-    await JSONExample.createResources()
-    await IndexJsonExample.createResources()
-  }
-
   async testRequiredFields () {
     const obj = { ab: 2 }
     const arr = [{ cd: 2 }, { cd: 1 }]
@@ -856,11 +824,6 @@ class JSONExampleTest extends BaseTest {
 }
 
 class GetArgsParserTest extends BaseTest {
-  async beforeAll () {
-    await super.beforeAll()
-    await SimpleExample.createResources()
-  }
-
   async testJustAModel () {
     await expect(db.__private.getWithArgs([SimpleExample], () => {})).rejects
       .toThrow(db.InvalidParameterError)
@@ -951,7 +914,6 @@ class GetArgsParserTest extends BaseTest {
 
 class WriteBatcherTest extends BaseTest {
   async beforeAll () {
-    await BasicExample.createResources()
     this.modelNames = [uuidv4(), uuidv4()]
     const promises = this.modelNames.map(name => {
       return txGet(BasicExample, name, (m) => {
@@ -1016,7 +978,6 @@ class WriteBatcherTest extends BaseTest {
     class ReservedAttrName extends db.Model {
       static FIELDS = { items: S.obj(), count: S.int, token: S.str }
     }
-    await ReservedAttrName.createResources()
     await db.Transaction.run(tx => {
       tx.create(ReservedAttrName, {
         id: uuidv4(), items: {}, count: 0, token: 'x'
@@ -1173,7 +1134,6 @@ class WriteBatcherTest extends BaseTest {
    * Verify modifying keyparts is not allowed
    */
   async testMutatingKeyparts () {
-    await CompoundIDExample.createResources()
     const compoundID = { year: 1900, make: 'Honda', upc: uuidv4() }
     let createPromise = db.Transaction.run(async tx => {
       const model = tx.create(CompoundIDExample, compoundID)
@@ -1212,7 +1172,6 @@ class DefaultsTest extends BaseTest {
         }).default({})
       }
     }
-    await NestedDefaultsExample.createResources()
     const id = uuidv4()
 
     await db.Transaction.run(async tx => {
@@ -1259,7 +1218,6 @@ class DefaultsTest extends BaseTest {
       static FIELDS = fields
     }
 
-    await NestedDefaultsExample.createResources()
     const id = uuidv4()
 
     await db.Transaction.run(async tx => {
@@ -1303,7 +1261,6 @@ class OptDefaultExampleTest extends BaseTest {
         }
       }
     }
-    await OptDefaultExample.createResources()
 
     function check (obj, def, opt, defOpt, def2, opt2, defOpt2) {
       expect(obj.def).toBe(def)
@@ -1359,7 +1316,6 @@ class OptDefaultExampleTest extends BaseTest {
         defOpt2: S.int.default(8).optional()
       }
     }
-    await OptDefaultExample2.createResources()
 
     // the default value for new fields isn't stored in the db yet (old rows
     // have not been changed yet)
@@ -1430,7 +1386,6 @@ class OptionalFieldConditionTest extends BaseTest {
         }
       }
     }
-    await OptNumExample.createResources()
 
     const id = uuidv4()
     await db.Transaction.run(tx => {
@@ -1452,7 +1407,6 @@ class OptionalFieldConditionTest extends BaseTest {
 class SnapshotTest extends BaseTest {
   async beforeAll () {
     await super.beforeAll()
-    await JSONExample.createResources()
     this.modelID = uuidv4()
     await db.Transaction.run(async tx => {
       await tx.get(JSONExample, {

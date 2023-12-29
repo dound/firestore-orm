@@ -118,7 +118,6 @@ class RaceResult extends db.Model {
 Access each component of a key just like any other field:
 ```javascript <!-- embed:./test/unit-test-doc.js:scope:DBReadmeTest:testKeys -->
   async testKeys () {
-    await RaceResult.createResources()
     await db.Transaction.run(async tx => {
       const raceResult = await tx.get(
         RaceResult,
@@ -794,7 +793,6 @@ feature or not. When they use it, we may just want to blindly record it:
 
       static FIELDS = { epoch: S.int }
     }
-    await LastUsedFeature.createResources()
     await db.Transaction.run(async tx => {
       // Overwrite the row regardless of the content
       const ret = tx.createOrPut(LastUsedFeature,

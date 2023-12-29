@@ -69,8 +69,6 @@ class QuickTransactionTest extends BaseTest {
 
   async beforeAll () {
     await super.beforeAll()
-    await TransactionExample.createResources()
-    await TransactionExampleWithRequiredField.createResources()
     this.oldTransactionOptions = db.Transaction.prototype.defaultOptions
     const newOptions = Object.assign({}, this.oldTransactionOptions)
     Object.assign(newOptions, { retries: 1, initialBackoff: 20 })
@@ -137,11 +135,6 @@ class KeyOnlyExample2 extends KeyOnlyExample {
 }
 
 class TransactionEdgeCaseTest extends BaseTest {
-  async beforeAll () {
-    await KeyOnlyExample.createResources()
-    await KeyOnlyExample2.createResources()
-  }
-
   async afterEach () {
     jest.restoreAllMocks()
   }
@@ -442,7 +435,6 @@ class TransactionGetTest extends QuickTransactionTest {
 class TransactionWriteTest extends QuickTransactionTest {
   async beforeAll () {
     await super.beforeAll()
-    await HookExample.createResources()
     this.modelName = '1234'
     await txGet(this.modelName, model => {
       model.field1 = 0
@@ -1060,7 +1052,6 @@ class TransactionReadOnlyTest extends QuickTransactionTest {
         field1: S.int
       }
     }
-    await ModelToUpdate.createResources()
     const id = uuidv4()
     // create a entry using the old schema
     await db.Transaction.run(async (tx) => {
@@ -1080,7 +1071,6 @@ class TransactionReadOnlyTest extends QuickTransactionTest {
     delete ModelToUpdate.__createdResource
     delete ModelToUpdate.__setupDone
     delete ModelToUpdate.__CACHED_SCHEMA
-    await ModelToUpdate.createResources()
 
     // Retrieve the old data, the field2 is assigned the default value,
     // but this change will NOT be committed
