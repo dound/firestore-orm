@@ -32,7 +32,7 @@ class Model {
    * Create a representation of a database Item. Should only be used by the
    * library.
    */
-  constructor (src, isNew, vals, index) {
+  constructor (src, isNew, vals) {
     this.isNew = !!isNew
     if (!ITEM_SOURCES.has(src)) {
       throw new InvalidParameterError('src', 'invalid item source type')
