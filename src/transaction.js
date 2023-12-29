@@ -310,14 +310,15 @@ class __WriteBatcher {
 }
 
 /**
- * Transaction context.
+ * Context provides a context for interacting with Firestore. Despite the
+ * name, it may or may not use a Firestore transaction.
  */
-class Transaction {
+class Context {
   /**
-   * Options for running a transaction.
-   * @typedef {Object} TransactionOptions
+   * Options for interacting with Firestore.
+   * @typedef {Object} ContextOptions
    * @property {Boolean} [readOnly=false] whether writes are allowed
-   * @property {Number} [retries=3] The number of times to retry after the
+   * @property {Number} [retries=4] The number of times to retry after the
    *   initial attempt fails.
    * @property {Number} [initialBackoff=500] In milliseconds, delay
    *   after the first attempt fails and before first retry happens.
@@ -333,20 +334,21 @@ class Transaction {
    */
 
   /**
-   * Returns the default [options]{@link TransactionOptions} for a transaction.
+   * Returns the default [options]{@link ContextOptions} for a transaction.
    */
   get defaultOptions () {
     return {
       readOnly: false,
-      retries: 3,
+      consistentReads: true,
       initialBackoff: 500,
       maxBackoff: 10000,
+      retries: 4,
       cacheModels: false
     }
   }
 
   /**
-   * @param {TransactionOptions} [options] Options for the transaction
+   * @param {ContextOptions} [options] Options for the transaction
    */
   constructor (options) {
     const defaults = this.defaultOptions
@@ -366,10 +368,21 @@ class Transaction {
       throw new InvalidOptionsError('maxBackoff',
         'Max back off must be larger than 200ms.')
     }
+    // read only context use transactions which get a consistent snapshot; to
+    // read data inconsistently use another context
+    if (!this.options.readOnly) {
+      if (!this.options.consistentReads) {
+        throw new InvalidOptionsError('consistentReads',
+          'read only contexts use a transaction to read data which results ' +
+          'in a consisntent snapshot; use another context to read data ' +
+          'without consistency gaurantees (and the locks they may acquire)')
+      }
+    }
+    this.isUsingTx = !this.options.readOnly
   }
 
   /**
-   * All events transactions may emit.
+   * All events a context may emit.
    *
    * POST_COMMIT: When a transaction is committed. Do clean up,
    *              summery, post process here.
@@ -395,74 +408,62 @@ class Transaction {
   }
 
   /**
-   * Get an item using DynamoDB's getItem API.
+   * Parameters for fetching a model and options to control how a model is
+   * fetched from database.
+   * @typedef {Object} GetParams
+   * @property {Boolean} [createIfMissing=false] If true, a model is returned
+   *   regardless of whether the model exists on server. This behavior is the
+   *   same as calling create when get(..., { createIfMissing: false }) returns
+   *   undefined
+   * @property {*} [*] Besides the predefined options, custom key-value pairs
+   *   can be added. These values will be made available to the Model's
+   *   constructor as an argument.
+   */
+
+  /**
+   * Get one document.
    *
    * @param {Key} key A key for the item
    * @param {GetParams} params Params for how to get the item
    */
   async __getItem (key, params) {
-    const getParams = key.Cls.__getParams(key.encodedKey, params)
-    const data = await this.documentClient.get(getParams).promise()
+    const docRef = key.Cls.__getDocRef(key.encodedKey)
+    const doc = await this.firestoreClient.get(docRef)
       .catch(
         // istanbul ignore next
         e => {
           throw new DBError('get', e)
         })
-    if (!params.createIfMissing && !data.Item) {
-      this.__writeBatcher.track(new NonExistentItem(key))
-      return undefined
-    }
-    const isNew = !data.Item
-    const vals = data.Item || key.vals
-    const model = new key.Cls(ITEM_SOURCE.GET, isNew, vals)
-    this.__writeBatcher.track(model)
-    return model
+    return this.__gotItem(key, params, doc)
   }
 
   /**
-   * Gets multiple items using DynamoDB's transactGetItems API.
+   * Gets multiple items in a single call.
    * @param {Array<Key>} keys A list of keys to get.
    * @param {GetParams} params Params used to get items, all items will be
    *   fetched using the same params.
    */
-  async __transactGetItems (keys, params) {
-    const txItems = []
-    for (const key of keys) {
-      const param = key.Cls.__getParams(key.encodedKey, params)
-      delete param.ConsistentRead // Omit for transactGetItems.
-      txItems.push({
-        Get: param
-      })
-    }
-    const data = await this.documentClient.transactGet({
-      TransactItems: txItems
-    }).promise().catch(
-      // istanbul ignore next
-      e => { throw new DBError('transactGet', e) }
-    )
-    const responses = data.Responses
-    const models = []
-    for (let idx = 0; idx < keys.length; idx++) {
-      const key = keys[idx]
-      const data = responses[idx]
-      if ((!params || !params.createIfMissing) && !data.Item) {
-        this.__writeBatcher.track(new NonExistentItem(key))
-        models[idx] = undefined
-        continue
-      }
-      const model = new key.Cls(
-        ITEM_SOURCE.GET,
-        !data.Item,
-        data.Item || key.vals)
+  async __getItems (keys, params) {
+    const docRefs = keys.map(key => key.Cls.__getDocRef(key.encodedKey))
+    const docs = await this.firestoreClient.getAll(...docRefs)
+      .catch(
+        // istanbul ignore next
+        e => {
+          throw new DBError('getAll', e)
+        })
+    return docs.map((doc, idx) => this.__gotItem(keys[idx], params, doc))
+  }
 
-      models[idx] = model
-      if (model) {
-        this.__writeBatcher.track(model)
-      } else {
-        this.__writeBatcher.track(new NonExistentItem(key))
-      }
+  __gotItem (key, params, doc) {
+    const isNew = !doc.exists
+    if (!params.createIfMissing && !isNew) {
+      this.__writeBatcher.track(new NonExistentItem(key))
+      return undefined
     }
-    return models
+    const vals = isNew ? key.vals : doc.data()
+    const model = new key.Cls(ITEM_SOURCE.GET, isNew, vals)
+    this.__writeBatcher.track(model)
+    return model
   }
 
   /**
@@ -527,7 +528,7 @@ class Transaction {
       if (keysOrDataToGet.length > 0) {
         if (argIsArray) {
           fetchedModels.push(
-            ...await this.__transactGetItems(keysOrDataToGet, params))
+            ...await this.__getItems(keysOrDataToGet, params))
         } else {
           // just fetch the one item that was requested
           fetchedModels.push(await this.__getItem(keysOrDataToGet[0], params))
@@ -729,6 +730,26 @@ class Transaction {
     this.options.cacheModels = true
   }
 
+  async __tryToRun (func) {
+    const ctx = this
+    if (ctx.isUsingTx) {
+      ctx.firestoreClient.runTransaction(async txFirestoreClient => {
+        ctx.__reset()
+        ctx.firestoreClient = txFirestoreClient
+        try {
+          return await func(ctx)
+        } finally {
+          ctx.firestoreClient = Context.firestoreClient
+        }
+      }, {
+        readOnly: ctx.readOnly,
+        maxAttempts: 1
+      })
+    } else {
+      return await func(ctx)
+    }
+  }
+
   /**
    * Runs a closure in transaction.
    * @param {Function} func the closure to run
@@ -744,7 +765,7 @@ class Transaction {
     for (let tryCnt = 0; tryCnt <= this.options.retries; tryCnt++) {
       try {
         this.__reset()
-        const ret = await func(this)
+        const ret = await this.__tryToRun(func)
         await this.__writeBatcher.commit(!this.options.readOnly)
         await this.__eventEmitter.emit(this.constructor.EVENTS.POST_COMMIT)
         return ret
@@ -777,7 +798,7 @@ class Transaction {
             throw e
           }
         } else {
-          console.log(`Transaction commit attempt ${tryCnt} failed with ` +
+          console.log(`Context commit attempt ${tryCnt} failed with ` +
             `error ${err}.`)
         }
       }
@@ -785,7 +806,7 @@ class Transaction {
         // note: this exact message is checked and during load testing this
         // error will not be sent to Sentry; if this message changes, please
         // update make-app.js too
-        const err = new TransactionFailedError('Too much contention.')
+        const err = new TransactionFailedError('Too much contention? (out of retries)')
         await this.__eventEmitter.emit(this.constructor.EVENTS.TX_FAILED, err)
         throw err
       }
@@ -802,17 +823,17 @@ class Transaction {
    * If a non-retryable error is thrown while running the transaction, it will
    * be re-raised.
    *
-   * @param {TransactionOptions} [options]
+   * @param {ContextOptions} [options]
    * @param {Function} func the closure to run.
    *
    * @example
    * // Can be called in 2 ways:
-   * Transaction.run(async (tx) => {
+   * Context.run(async (tx) => {
    *   // Do something
    * })
    *
    * // Or
-   * Transaction.run({ retryCount: 2 }, async (tx) => {
+   * Context.run({ retryCount: 2 }, async (tx) => {
    *   // Do something
    * })
    */
@@ -822,7 +843,7 @@ class Transaction {
     if (args.length <= 0 || args.length > 2) {
       throw new InvalidParameterError('args', 'should be ([options,] func)')
     }
-    return new Transaction(opts).__run(func)
+    return new Context(opts).__run(func)
   }
 
   /**
@@ -856,6 +877,6 @@ class Transaction {
 
 module.exports = {
   __WriteBatcher,
-  Transaction,
+  Context,
   getWithArgs
 }

@@ -318,28 +318,11 @@ class Model {
   /**
    * @access package
    * @param {String} encodedKey
-   * @param {GetParams} options
-   * @returns {Object} parameters for a get request to DynamoDB
+   * @returns {DocumentReference} a reference to the Firestore document
    */
-  static __getParams (encodedKey, options) {
-    return {
-      TableName: this.tableName,
-      Key: encodedKey
-    }
+  static __getDocRef (encodedKey) {
+    return this.firestoreClient.collection(this.tableName).doc(encodedKey)
   }
-
-  /**
-   * Parameters for fetching a model and options to control how a model is
-   * fetched from database.
-   * @typedef {Object} GetParams
-   * @property {Boolean} [createIfMissing=false] If true, a model is returned
-   *   regardless of whether the model exists on server. This behavior is the
-   *   same as calling create when get(..., { createIfMissing: false }) returns
-   *   undefined
-   * @property {*} [*] Besides the predefined options, custom key-value pairs
-   *   can be added. These values will be made available to the Model's
-   *   constructor as an argument.
-   */
 
   /**
    * Generates parameters for a put request to DynamoDB.

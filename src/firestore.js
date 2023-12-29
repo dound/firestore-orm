@@ -26,7 +26,7 @@ const { Model } = require('./models')
 const {
   __WriteBatcher,
   getWithArgs,
-  Transaction
+  Context
 } = require('./transaction')
 const {
   ITEM_SOURCE
@@ -49,7 +49,7 @@ function setup (firestoreClient) {
   const clsWithDBAccess = [
     __WriteBatcher,
     Model,
-    Transaction
+    Context
   ]
   clsWithDBAccess.forEach(Cls => {
     Cls.firestoreClient = firestoreClient
@@ -60,7 +60,7 @@ function setup (firestoreClient) {
     S,
     Model,
     UniqueKeyList,
-    Transaction,
+    Context,
 
     // Errors
     InvalidFieldError,

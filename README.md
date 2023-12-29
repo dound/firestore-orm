@@ -73,7 +73,7 @@ tx.create(Order, { id, product: 'coffee', quantity: 1 })
 Later, we can retrieve it from the database and modify it:
 ```javascript <!-- embed:./test/unit-test-doc.js:scope:DBReadmeTest:testMinimalExample:Example -->
     // Example
-    await db.Transaction.run(async tx => {
+    await db.Context.run(async tx => {
       const order = await tx.get(OrderWithNoPrice, id)
       expect(order.id).toBe(id)
       expect(order.product).toBe('coffee')
@@ -107,7 +107,7 @@ class RaceResult extends db.Model {
 Access each component of a key just like any other field:
 ```javascript <!-- embed:./test/unit-test-doc.js:scope:DBReadmeTest:testKeys -->
   async testKeys () {
-    await db.Transaction.run(async tx => {
+    await db.Context.run(async tx => {
       const raceResult = await tx.get(
         RaceResult,
         { raceID: 99, runnerName: 'Bo' },
@@ -319,14 +319,14 @@ traditional, transaction-processing databases:
 ### Retries
 When a transaction fails due to contention, it will retry after a short, random
 delay. Randomness helps prevent conflicting transactions from conflicting again
-when they retry. Transaction retry behaviors can be customized:
+when they retry. Context retry behaviors can be customized:
 ```javascript
 const retryOptions = {
   retries: 4, // 1 initial run + up to 4 retry attempts = max 5 total attempts
   initialBackoff: 100, // 100 milliseconds (+/- a small random offset)
   maxBackoff: 500 // no more than 500 milliseconds
 }
-await db.Transaction.run(retryOptions, async tx => {
+await db.Context.run(retryOptions, async tx => {
   // you can also manually force your transaction to retry by throwing a
   // custom exception with the "retryable" property set to true
   const error = new Error()
@@ -347,8 +347,8 @@ You can ensure a transaction does not make any database changes by setting the
 `readOnly` option to true, or calling `tx.makeReadOnly()`:
 ```javascript
 const readOnlyOption = { readOnly: true }
-await db.Transaction.run(readOnlyOption, async tx => { /* ... */ })
-await db.Transaction.run(async tx => {
+await db.Context.run(readOnlyOption, async tx => { /* ... */ })
+await db.Context.run(async tx => {
   tx.makeReadOnly()
   // ...
 })
@@ -390,7 +390,7 @@ class LiftStats extends db.Model {
 We can correctly update these numbers in a transaction like this:
 ```javascript
 async function liftRideTaken(resort, isNewSkier) {
-  await db.Transaction.run(async tx => {
+  await db.Context.run(async tx => {
     const opts = { createIfMissing: true }
     const [skierStats, liftStats] = await Promise.all([
       !isNewSkier ? Promise.resolve() : tx.get(SkierStats, resort, opts),
@@ -438,7 +438,7 @@ the application code which defines the transaction has side effects, those side
 effects may occur even if the transaction doesn't commit. They could even occur
 multiple times (if your transaction retries).
 ```javascript
-  await db.Transaction.run(async tx => {
+  await db.Context.run(async tx => {
     const row = await tx.get(...)
     row.someInt += 1
     if (row.someInt > 10) {
@@ -612,14 +612,14 @@ feature or not. When they use it, we may just want to blindly record it:
 
       static FIELDS = { epoch: S.int }
     }
-    await db.Transaction.run(async tx => {
+    await db.Context.run(async tx => {
       // Overwrite the row regardless of the content
       const ret = tx.createOrPut(LastUsedFeature,
         { user: 'Bob', feature: 'refer a friend', epoch: 234 })
       expect(ret).toBe(undefined) // should not return anything
     })
 
-    await db.Transaction.run(tx => {
+    await db.Context.run(tx => {
       tx.createOrPut(LastUsedFeature,
         // this contains the new value(s) and the row's key; if a value is
         // undefined then the field will be deleted (it must be optional for
@@ -630,7 +630,7 @@ feature or not. When they use it, we may just want to blindly record it:
         { epoch: 234 }
       )
     })
-    await db.Transaction.run(async tx => {
+    await db.Context.run(async tx => {
       const row = await tx.get(LastUsedFeature,
         { user: 'Bob', feature: 'refer a friend' })
       expect(row.epoch).toBe(123)
@@ -726,9 +726,9 @@ tx.create(StringKeyWithNullBytes, {
 ## Nested Transactions are NOT Nested
 Nested transactions like this should be avoided:
 ```javascript
-await Transaction.run(async outerTx => {
+await Context.run(async outerTx => {
   // ...
-  await Transaction.run(async innerTx => {
+  await Context.run(async innerTx => {
     // ...
   }
 }
@@ -795,7 +795,7 @@ Indexes increase the physical storage and data write cost for the model.
 By default, reading a row twice in a single transaction is treated as an
 exception.
 ```javascript
-await db.Transaction.run(async tx => {
+await db.Context.run(async tx => {
   await tx.get(SomeModel, "model id")
   // await tx.get(SomeModel, "model id") // throws exception
 })
@@ -813,7 +813,7 @@ const operation = async (tx) => {
 
 const operations = [operation, operation]
 
-await db.Transaction.run(async tx => {
+await db.Context.run(async tx => {
   for (const op of operations) {
     // Second iteration will throw
     await op(tx)
@@ -826,7 +826,7 @@ toggled on. In this mode, when a row is first read, it is cached by the
 transaction, and the transaction will return the cached model for any
 subsequent reads.
 ```javascript
-await db.Transaction.run({ cacheModels: true },async tx => {
+await db.Context.run({ cacheModels: true },async tx => {
   // This transaction will complete ok
   for (const op of operations) {
     await op(tx)
@@ -837,7 +837,7 @@ await db.Transaction.run({ cacheModels: true },async tx => {
 Any modifications made to the cached row will be stored along with the row,
 so subsequent reads will see the previous updates.
  ```javascript
-await db.Transaction.run({ cacheModels: true },async tx => {
+await db.Context.run({ cacheModels: true },async tx => {
   const model = await tx.get(SomeModel, "some id")
   model.intField = 123
 
@@ -849,7 +849,7 @@ await db.Transaction.run({ cacheModels: true },async tx => {
 Repeated reads can be enabled during a transaction because transactions track
 all referenced rows. Call `enableModelCache` to turn it on.
 ```javascript
-await db.Transaction.run(async tx => {
+await db.Context.run(async tx => {
   ...
   tx.enableModelCache()
   ...
@@ -895,7 +895,7 @@ requests like above. Rules are as following:
 
 
 ## Transactions
-Our `Transaction` class, combines AOL and DynamoDB's transactWrite with the
+Our `Context` class, combines AOL and DynamoDB's transactWrite with the
 following strategy:
 
 * Individual get operations are allowed within a transaction context.
@@ -908,7 +908,7 @@ following strategy:
     * For each read-write rows:
         * Append UpdateExpression generated using AOL.
         * Append ConditionExpressions generated using AOL
-* Transaction commits when the transaction context / scope is exited.
+* Context commits when the transaction context / scope is exited.
 * If a `retryable` error or `ConditionalCheckFailedException` or
   `TransactionCanceledException` is thrown during transactWrite operation,
   transaction will be retried.

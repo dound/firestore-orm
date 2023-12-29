@@ -91,7 +91,7 @@ class ErrorTest extends BaseTest {
 }
 
 async function txGet (key, id, func) {
-  return db.Transaction.run(async tx => {
+  return db.Context.run(async tx => {
     const model = await tx.get(key, id, { createIfMissing: true })
     if (func) {
       func(model)
@@ -101,7 +101,7 @@ async function txGet (key, id, func) {
 }
 
 async function txGetByKey (key, func) {
-  return db.Transaction.run(async tx => {
+  return db.Context.run(async tx => {
     const model = await tx.get(key, { createIfMissing: true })
     if (func) {
       func(model)
@@ -111,7 +111,7 @@ async function txGetByKey (key, func) {
 }
 
 async function txCreate (...args) {
-  return db.Transaction.run(tx => {
+  return db.Context.run(tx => {
     return tx.create(...args)
   })
 }
@@ -141,7 +141,7 @@ class SimpleExampleTest extends BaseTest {
   }
 
   async testFieldNotExtendable () {
-    await expect(db.Transaction.run(tx => {
+    await expect(db.Context.run(tx => {
       const row = tx.create(SimpleExample, { id: uuidv4() })
       row.id.weCannotAddPropertiesToFieldsOnModels = undefined
     })).rejects.toThrow(TypeError)
@@ -181,7 +181,7 @@ class SimpleExampleTest extends BaseTest {
 
 class NewModelTest extends BaseTest {
   async testCreateModelIsNew () {
-    const result = await db.Transaction.run(tx => {
+    const result = await db.Context.run(tx => {
       const id = uuidv4()
       const model = tx.create(SimpleExample, { id })
       expect(model.id).toBe(id)
@@ -195,12 +195,12 @@ class NewModelTest extends BaseTest {
   }
 
   async testGetNewModel () {
-    let ret = await db.Transaction.run(async tx => {
+    let ret = await db.Context.run(async tx => {
       return tx.get(SimpleExample, uuidv4())
     })
     expect(ret).toBe(undefined)
 
-    ret = await db.Transaction.run(async tx => {
+    ret = await db.Context.run(async tx => {
       return tx.get(SimpleExample, uuidv4(), { createIfMissing: true })
     })
     expect(ret).not.toBe(undefined)
@@ -391,7 +391,7 @@ class WriteTest extends BaseTest {
   }
 
   async testNoAccessProperty () {
-    // Building block for strong Transaction isolation levels
+    // Building block for strong Context isolation levels
     const m1 = await txGet(BasicExample, this.modelName)
     let params = m1.__updateParams()
     expect(params.ConditionExpression).toBe('attribute_exists(#_id)')
@@ -526,7 +526,7 @@ class OneFieldExample extends db.Model {
 
 class KeyTest extends BaseTest {
   async testGetNoCreateIfMissingWithExcessFields () {
-    const fut = db.Transaction.run(async tx => {
+    const fut = db.Context.run(async tx => {
       // can't specify field like "n" when reading unless we're doing a
       // createIfMissing=true
       await tx.get(OneFieldExample, { id: uuidv4(), n: 3 })
@@ -543,13 +543,13 @@ class KeyTest extends BaseTest {
   }
 
   async testGetWithWrongType () {
-    await expect(db.Transaction.run(async tx => {
+    await expect(db.Context.run(async tx => {
       await tx.get(OneFieldExample.key({ id: uuidv4() }), {
         createIfMissing: true
       })
     })).rejects.toThrow(/must pass a Data/)
 
-    await expect(db.Transaction.run(async tx => {
+    await expect(db.Context.run(async tx => {
       await tx.get(OneFieldExample.data({ id: uuidv4(), n: 3 }))
     })).rejects.toThrow(/must pass a Key/)
   }
@@ -681,7 +681,7 @@ class JSONExampleTest extends BaseTest {
       arrNoDefaultRequired: [{ cd: 2 }],
       arrDefaultRequired: []
     }
-    const [model1, model2] = await db.Transaction.run(async tx => {
+    const [model1, model2] = await db.Context.run(async tx => {
       return [
         await tx.get(JSONExample, data, { createIfMissing: true }),
         await tx.get(IndexJsonExample, { key1: '1', key2: '2', data: '3' },
@@ -848,7 +848,7 @@ class WriteBatcherTest extends BaseTest {
     class ReservedAttrName extends db.Model {
       static FIELDS = { items: S.obj(), count: S.int, token: S.str }
     }
-    await db.Transaction.run(tx => {
+    await db.Context.run(tx => {
       tx.create(ReservedAttrName, {
         id: uuidv4(), items: {}, count: 0, token: 'x'
       })
@@ -876,7 +876,7 @@ class WriteBatcherTest extends BaseTest {
     await expect(fut).rejects.toThrow(db.ModelAlreadyExistsError)
 
     // Multi-row transactions
-    fut = db.Transaction.run(async (tx) => {
+    fut = db.Context.run(async (tx) => {
       tx.create(BasicExample, { id })
       tx.create(BasicExample, { id: uuidv4() })
     })
@@ -885,12 +885,12 @@ class WriteBatcherTest extends BaseTest {
 
   async testInvalidModelUpdateError () {
     const id = uuidv4()
-    let fut = db.Transaction.run(async (tx) => {
+    let fut = db.Context.run(async (tx) => {
       tx.update(BasicExample, { id }, { noRequiredNoDefault: 1 })
     })
     await expect(fut).rejects.toThrow(db.InvalidModelUpdateError)
 
-    fut = db.Transaction.run(async (tx) => {
+    fut = db.Context.run(async (tx) => {
       tx.create(BasicExample, { id: uuidv4() })
       tx.update(BasicExample, { id }, { noRequiredNoDefault: 1 })
     })
@@ -901,12 +901,12 @@ class WriteBatcherTest extends BaseTest {
    * Verify creating a model with invalid key fails
    */
   async testInvalidKey () {
-    let createPromise = db.Transaction.run(async tx => {
+    let createPromise = db.Context.run(async tx => {
       tx.create(BasicExample, { id: { test: 'not valid schema' } })
     })
     await expect(createPromise).rejects.toThrow(S.ValidationError)
 
-    createPromise = db.Transaction.run(async tx => {
+    createPromise = db.Context.run(async tx => {
       return tx.get(BasicExample, { id: { test: 'not valid schema' } }, { createIfMissing: true })
     })
 
@@ -918,17 +918,17 @@ class WriteBatcherTest extends BaseTest {
    */
   async testMutatingKeyparts () {
     const compoundID = { year: 1900, make: 'Honda', upc: uuidv4() }
-    let createPromise = db.Transaction.run(async tx => {
+    let createPromise = db.Context.run(async tx => {
       const model = tx.create(CompoundIDExample, compoundID)
       model.year = 1901
     })
     await expect(createPromise).rejects.toThrow(db.InvalidFieldError)
 
-    await db.Transaction.run(async tx => {
+    await db.Context.run(async tx => {
       return tx.create(CompoundIDExample, compoundID)
     })
 
-    createPromise = db.Transaction.run(async tx => {
+    createPromise = db.Context.run(async tx => {
       const model = await tx.get(CompoundIDExample, compoundID)
       model.year = 1901
     })
@@ -957,14 +957,14 @@ class DefaultsTest extends BaseTest {
     }
     const id = uuidv4()
 
-    await db.Transaction.run(async tx => {
+    await db.Context.run(async tx => {
       tx.create(NestedDefaultsExample, {
         id: id,
         arr: [{ int: 2 }, { int: 3 }]
       })
     })
 
-    await db.Transaction.run(async tx => {
+    await db.Context.run(async tx => {
       const result = await tx.get(NestedDefaultsExample, id)
       expect(result.arr).toEqual([
         {
@@ -1003,7 +1003,7 @@ class DefaultsTest extends BaseTest {
 
     const id = uuidv4()
 
-    await db.Transaction.run(async tx => {
+    await db.Context.run(async tx => {
       tx.create(NestedDefaultsExample, {
         id: id,
         arr: [{ int: 2 }, { int: 3 }]
@@ -1015,7 +1015,7 @@ class DefaultsTest extends BaseTest {
     delete NestedDefaultsExample.__setupDone
     NestedDefaultsExample.__doOneTimeModelPrep()
 
-    await db.Transaction.run(async tx => {
+    await db.Context.run(async tx => {
       const result = await tx.get(NestedDefaultsExample, id)
       expect(result.arr).toEqual([
         {
@@ -1059,7 +1059,7 @@ class OptDefaultExampleTest extends BaseTest {
     const idSpecifyNothing = uuidv4()
     const idSpecifyAll = uuidv4()
     const idUndef = uuidv4()
-    await db.Transaction.run(tx => {
+    await db.Context.run(tx => {
       // can just use the defaults (specify no field values)
       check(tx.create(OptDefaultExample, { id: idSpecifyNothing }),
         7, undefined, 7)
@@ -1081,7 +1081,7 @@ class OptDefaultExampleTest extends BaseTest {
     })
 
     // verify that these are all properly stored to the database
-    await db.Transaction.run(async tx => {
+    await db.Context.run(async tx => {
       check(await tx.get(OptDefaultExample, idSpecifyNothing), 7, undefined, 7)
       check(await tx.get(OptDefaultExample, idSpecifyAll), 1, 2, 3)
       check(await tx.get(OptDefaultExample, idUndef), 7, undefined, undefined)
@@ -1102,21 +1102,21 @@ class OptDefaultExampleTest extends BaseTest {
 
     // the default value for new fields isn't stored in the db yet (old rows
     // have not been changed yet)
-    let fut = db.Transaction.run(async tx => {
+    let fut = db.Context.run(async tx => {
       await tx.update(OptDefaultExample2,
         { id: idSpecifyNothing, def2: 8 }, { def: 1 })
     })
     await expect(fut).rejects.toThrow(/outdated \/ invalid conditions/)
 
     // we can (ONLY) use update() on defaults that have been written to the db
-    await db.Transaction.run(async tx => {
+    await db.Context.run(async tx => {
       await tx.update(OptDefaultExample2,
         { id: idSpecifyNothing, def: 7 }, { opt2: 11 })
     })
 
     // blind updates are only partial, so they won't populate a new default
     // field unless explicitly given a value for it
-    fut = db.Transaction.run(async tx => {
+    fut = db.Context.run(async tx => {
       await tx.update(OptDefaultExample2,
         { id: idSpecifyNothing, def2: 8 }, { def: 2 })
     })
@@ -1125,35 +1125,35 @@ class OptDefaultExampleTest extends BaseTest {
     // verify that these are all in the proper state when accessing old rows;
     // also, accessing the row populates the default value for the new field
     // which triggers a database write!
-    await db.Transaction.run(async tx => {
+    await db.Context.run(async tx => {
       check(await tx.get(OptDefaultExample2, idSpecifyNothing),
         7, undefined, 7,
         8, 11, undefined)
     })
-    await db.Transaction.run(async tx => {
+    await db.Context.run(async tx => {
       // verify the db was updated by doing a blind update dependent on it
       await tx.update(OptDefaultExample2,
         { id: idSpecifyNothing, def2: 8 }, { def: 100 })
     })
-    await db.Transaction.run(async tx => {
+    await db.Context.run(async tx => {
       check(await tx.get(OptDefaultExample2, idSpecifyNothing),
         100, undefined, 7, 8, 11, undefined)
     })
 
     // accessing and modifying an old row will also write the new defaults to
     // the db
-    await db.Transaction.run(async tx => {
+    await db.Context.run(async tx => {
       const row = await tx.get(OptDefaultExample2, idUndef)
       check(row, 7, undefined, undefined,
         8, undefined, undefined)
       row.def = 3
     })
-    await db.Transaction.run(async tx => {
+    await db.Context.run(async tx => {
       // verify the db was updated by doing a blind update dependent on it
       await tx.update(OptDefaultExample2,
         { id: idUndef, def: 3, def2: 8 }, { opt2: 101 })
     })
-    await db.Transaction.run(async tx => {
+    await db.Context.run(async tx => {
       check(await tx.get(OptDefaultExample2, idUndef),
         3, undefined, undefined, 8, 101, undefined)
     })
@@ -1164,7 +1164,7 @@ class SnapshotTest extends BaseTest {
   async beforeAll () {
     await super.beforeAll()
     this.modelID = uuidv4()
-    await db.Transaction.run(async tx => {
+    await db.Context.run(async tx => {
       await tx.get(JSONExample, {
         id: this.modelID,
         objNoDefaultRequired: { ab: 11 },
@@ -1175,7 +1175,7 @@ class SnapshotTest extends BaseTest {
 
   async testGetNewModel () {
     const id = uuidv4()
-    const result = await db.Transaction.run(async tx => {
+    const result = await db.Context.run(async tx => {
       const m = await tx.get(JSONExample,
         {
           id,
@@ -1220,7 +1220,7 @@ class SnapshotTest extends BaseTest {
   }
 
   async testGetExistingModel () {
-    const result = await db.Transaction.run(async tx => {
+    const result = await db.Context.run(async tx => {
       const m = await tx.get(JSONExample, this.modelID)
       return {
         before: m.getSnapshot({ initial: true, dbKeys: true }),
@@ -1255,11 +1255,11 @@ class UniqueKeyListTest extends BaseTest {
 
   async testGet () {
     const id = uuidv4()
-    await db.Transaction.run(tx => {
+    await db.Context.run(tx => {
       tx.create(SimpleExample, { id })
     })
     const keys = new db.UniqueKeyList(SimpleExample.key(id))
-    const result = await db.Transaction.run(tx => {
+    const result = await db.Context.run(tx => {
       return tx.get(keys)
     })
     expect(result[0].id).toBe(id)

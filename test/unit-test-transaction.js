@@ -7,7 +7,7 @@ const uuidv4 = require('uuid').v4
 const db = require('../src/default-db')
 
 async function txGetGeneric (cls, values, func) {
-  return db.Transaction.run(async tx => {
+  return db.Context.run(async tx => {
     let model
     const valuesType = values.constructor.name
     if (valuesType === 'Key' || valuesType === 'Data') {
@@ -61,7 +61,7 @@ class TransactionExampleWithRequiredField extends TransactionExample {
 
 class QuickTransactionTest extends BaseTest {
   mockTransactionDefaultOptions (options) {
-    Object.defineProperty(db.Transaction.prototype, 'defaultOptions', {
+    Object.defineProperty(db.Context.prototype, 'defaultOptions', {
       value: options,
       writable: false
     })
@@ -69,7 +69,7 @@ class QuickTransactionTest extends BaseTest {
 
   async beforeAll () {
     await super.beforeAll()
-    this.oldTransactionOptions = db.Transaction.prototype.defaultOptions
+    this.oldTransactionOptions = db.Context.prototype.defaultOptions
     const newOptions = Object.assign({}, this.oldTransactionOptions)
     Object.assign(newOptions, { retries: 1, initialBackoff: 20 })
     this.mockTransactionDefaultOptions(newOptions)
@@ -90,7 +90,7 @@ class ParameterTest extends BaseTest {
     ]
     for (const opt of badOptions) {
       expect(() => {
-        new db.Transaction(opt) // eslint-disable-line no-new
+        new db.Context(opt) // eslint-disable-line no-new
       }).not.toThrow()
     }
   }
@@ -105,22 +105,22 @@ class ParameterTest extends BaseTest {
     ]
     for (const opt of badOptions) {
       expect(() => {
-        new db.Transaction(opt) // eslint-disable-line no-new
+        new db.Context(opt) // eslint-disable-line no-new
       }).toThrow(db.InvalidOptionsError)
     }
   }
 
   async testBadRunParam () {
-    await expect(db.Transaction.run(1, 2)).rejects
+    await expect(db.Context.run(1, 2)).rejects
       .toThrow(db.InvalidParameterError)
 
-    await expect(db.Transaction.run({}, 2)).rejects
+    await expect(db.Context.run({}, 2)).rejects
       .toThrow(db.InvalidParameterError)
 
-    await expect(db.Transaction.run(1, () => {})).rejects
+    await expect(db.Context.run(1, () => {})).rejects
       .toThrow(db.InvalidParameterError)
 
-    await expect(db.Transaction.run(1, 2, 3)).rejects
+    await expect(db.Context.run(1, 2, 3)).rejects
       .toThrow(db.InvalidParameterError)
   }
 }
@@ -141,9 +141,9 @@ class TransactionEdgeCaseTest extends BaseTest {
   async testKeyCollisionFromSeparateModels () {
     const id = uuidv4()
     let checked = false
-    const promise = db.Transaction.run(async tx => {
+    const promise = db.Context.run(async tx => {
       const i1 = tx.create(KeyOnlyExample, { id })
-      await db.Transaction.run(tx => {
+      await db.Context.run(tx => {
         const i2 = tx.create(KeyOnlyExample2, { id })
         expect(i1.toString()).toEqual(i2.toString())
         checked = true
@@ -162,7 +162,7 @@ class TransactionGetTest extends QuickTransactionTest {
   }
 
   async testGetItemTwice () {
-    await db.Transaction.run(async (tx) => {
+    await db.Context.run(async (tx) => {
       await tx.get(TransactionExample, 'a',
         { createIfMissing: true })
       const fut = tx.get(TransactionExample, 'a',
@@ -173,7 +173,7 @@ class TransactionGetTest extends QuickTransactionTest {
   }
 
   async testGetModelByID () {
-    await db.Transaction.run(async (tx) => {
+    await db.Context.run(async (tx) => {
       const model = await tx.get(TransactionExample, 'a',
         { createIfMissing: true })
       expect(model.id).toBe('a')
@@ -181,7 +181,7 @@ class TransactionGetTest extends QuickTransactionTest {
   }
 
   async testGetModelByKey () {
-    await db.Transaction.run(async (tx) => {
+    await db.Context.run(async (tx) => {
       const model = await tx.get(TransactionExample.data('a'),
         { createIfMissing: true })
       expect(model.id).toBe('a')
@@ -189,7 +189,7 @@ class TransactionGetTest extends QuickTransactionTest {
   }
 
   async testGetModelByKeys () {
-    await db.Transaction.run(async (tx) => {
+    await db.Context.run(async (tx) => {
       const [m1, m2] = await tx.get([
         TransactionExample.data('a'),
         TransactionExample.data('b')
@@ -201,7 +201,7 @@ class TransactionGetTest extends QuickTransactionTest {
 
   async testTransactGet () {
     const newName = uuidv4()
-    const [m1, m2] = await db.Transaction.run(async (tx) => {
+    const [m1, m2] = await db.Context.run(async (tx) => {
       const ret = await tx.get([
         TransactionExample.key(this.modelName),
         TransactionExample.key(newName)
@@ -212,7 +212,7 @@ class TransactionGetTest extends QuickTransactionTest {
     expect(m1.id).toBe(this.modelName)
     expect(m2).toBe(undefined)
 
-    const [m3, m4] = await db.Transaction.run(async (tx) => {
+    const [m3, m4] = await db.Context.run(async (tx) => {
       return tx.get([
         TransactionExample.data(this.modelName),
         TransactionExample.data(newName)
@@ -223,7 +223,7 @@ class TransactionGetTest extends QuickTransactionTest {
   }
 
   async testMultipleGet () {
-    await db.Transaction.run(async (tx) => {
+    await db.Context.run(async (tx) => {
       const [m1, m2] = await tx.get([
         TransactionExample.data('a'),
         TransactionExample.data('b')
@@ -240,7 +240,7 @@ class TransactionGetTest extends QuickTransactionTest {
 
   async testGetWithParams () {
     const params = { createIfMissing: true }
-    await db.Transaction.run(async (tx) => {
+    await db.Context.run(async (tx) => {
       const [m1, m2] = await tx.get([
         TransactionExample.data('a'),
         TransactionExample.data('b')
@@ -254,7 +254,7 @@ class TransactionGetTest extends QuickTransactionTest {
       expect(m4.id).toBe('d')
       expect(m5).toBe(undefined)
     })
-    await db.Transaction.run(async tx => {
+    await db.Context.run(async tx => {
       const m4NoCreateIfMissing = await tx.get(TransactionExample.key('d'))
       expect(m4NoCreateIfMissing.id).toBe('d')
       const m5 = await tx.get(TransactionExample.key('e'))
@@ -264,7 +264,7 @@ class TransactionGetTest extends QuickTransactionTest {
 
   async testGetMissingThenCreate () {
     let id = uuidv4()
-    const ret = await db.Transaction.run(async tx => {
+    const ret = await db.Context.run(async tx => {
       const m1 = await tx.get(TransactionExample, id)
       const m2 = await tx.get(TransactionExample, id, { createIfMissing: true })
       return [m1, m2]
@@ -273,7 +273,7 @@ class TransactionGetTest extends QuickTransactionTest {
     expect(ret[1]._id).toBe(id)
 
     id = uuidv4()
-    const fut = db.Transaction.run(async tx => {
+    const fut = db.Context.run(async tx => {
       await tx.get(TransactionExample, id)
       tx.create(TransactionExample, { id })
     })
@@ -294,7 +294,7 @@ class TransactionWriteTest extends QuickTransactionTest {
   async testWriteExisting () {
     const val = Math.floor(Math.random() * 999999)
     const data = TransactionExample.data(this.modelName)
-    await db.Transaction.run(async (tx) => {
+    await db.Context.run(async (tx) => {
       const txModel = await tx.get(data, { createIfMissing: true })
       txModel.field1 = val
       txModel.field2 = 200
@@ -308,7 +308,7 @@ class TransactionWriteTest extends QuickTransactionTest {
     const modelName = uuidv4()
     const data = TransactionExample.data(modelName)
     const val = Math.floor(Math.random() * 999999)
-    await db.Transaction.run(async (tx) => {
+    await db.Context.run(async (tx) => {
       const txModel = await tx.get(data, { createIfMissing: true })
       expect(txModel.isNew).toBe(true)
       txModel.field1 = val
@@ -327,7 +327,7 @@ class TransactionWriteTest extends QuickTransactionTest {
       () => fakeTime
     )
     const data = HookExample.data(modelName)
-    await db.Transaction.run(async tx => {
+    await db.Context.run(async tx => {
       const txModel = await tx.get(data, { createIfMissing: true })
       txModel.field1 = 22
     })
@@ -335,7 +335,7 @@ class TransactionWriteTest extends QuickTransactionTest {
     let model = await txGet(data)
     expect(model.latestUpdateEpoch).toEqual(1000)
 
-    await db.Transaction.run(async tx => {
+    await db.Context.run(async tx => {
       const txModel = await tx.get(data, { createIfMissing: true })
       txModel.field1 = 23
     })
@@ -350,11 +350,11 @@ class TransactionWriteTest extends QuickTransactionTest {
       tx.create(TransactionExample, { id: id1 })
       tx.create(TransactionExample, { id: id2 })
     }
-    await db.Transaction.run(createBoth)
+    await db.Context.run(createBoth)
     expect((await txGet(id1)).id).toBe(id1)
     expect((await txGet(id2)).id).toBe(id2)
     try {
-      await db.Transaction.run(createBoth)
+      await db.Context.run(createBoth)
       assert.fail('should not get here')
     } catch (err) {
       expect(err.message).toMatch(/^Multiple Non-retryable Errors:/)
@@ -368,7 +368,7 @@ class TransactionWriteTest extends QuickTransactionTest {
 
   async testCreateWithData () {
     const name = uuidv4()
-    await db.Transaction.run(tx => {
+    await db.Context.run(tx => {
       const model = tx.create(TransactionExample, { id: name, field1: 987 })
       model.field2 = 1
     })
@@ -381,7 +381,7 @@ class TransactionWriteTest extends QuickTransactionTest {
   async testWriteExistingAsNew () {
     const val = Math.floor(Math.random() * 999999)
     let tryCnt = 0
-    const fut = db.Transaction.run({ retries: 3 }, async (tx) => {
+    const fut = db.Context.run({ retries: 3 }, async (tx) => {
       tryCnt++
       const txModel = tx.create(TransactionExample, { id: this.modelName })
       txModel.field1 = val
@@ -394,7 +394,7 @@ class TransactionWriteTest extends QuickTransactionTest {
     // When updating, if properties read in a transaction was updated outside,
     // contention!
     const data = TransactionExample.data(uuidv4())
-    const fut = db.Transaction.run({ retries: 0 }, async (tx) => {
+    const fut = db.Context.run({ retries: 0 }, async (tx) => {
       const txModel = await tx.get(data, { createIfMissing: true })
       await txGet(data, model => {
         model.field2 = 321
@@ -415,7 +415,7 @@ class TransactionWriteTest extends QuickTransactionTest {
     // outside, contention!
     let result
     const data = TransactionExample.data(this.modelName)
-    const fut = db.Transaction.run({ retries: 0 }, async (tx) => {
+    const fut = db.Context.run({ retries: 0 }, async (tx) => {
       const txModel = await tx.get(data, { createIfMissing: true })
       if (txModel.field1 && txModel.field2) {
         // no-op: just accessing the fields so we're conditioned on their
@@ -436,7 +436,7 @@ class TransactionWriteTest extends QuickTransactionTest {
   }
 
   async testNoChangeNoWrite () {
-    await db.Transaction.run(async (tx) => {
+    await db.Context.run(async (tx) => {
       const txModel = await tx.get(TransactionExample, this.modelName,
         { createIfMissing: true })
       expect(txModel.isNew).toBe(false)
@@ -447,7 +447,7 @@ class TransactionWriteTest extends QuickTransactionTest {
   }
 
   async testNewModelNoChange () {
-    await db.Transaction.run(async (tx) => {
+    await db.Context.run(async (tx) => {
       const txModel = await tx.get(TransactionExample, uuidv4(),
         { createIfMissing: true })
       expect(txModel.isNew).toBe(true)
@@ -461,7 +461,7 @@ class TransactionWriteTest extends QuickTransactionTest {
     // Additional changes to model after call to update should not be reflected
     const data = TransactionExample.data(uuidv4())
     const deepObj = { a: 12 }
-    await db.Transaction.run(async tx => {
+    await db.Context.run(async tx => {
       const model = await tx.get(data, { createIfMissing: true })
       expect(model.isNew).toBe(true)
 
@@ -480,7 +480,7 @@ class TransactionWriteTest extends QuickTransactionTest {
     // there shouldn't be contention
     let finalVal
     const data = TransactionExample.data(this.modelName)
-    await db.Transaction.run(async (tx) => {
+    await db.Context.run(async (tx) => {
       const txModel = await tx.get(data, { createIfMissing: true })
       const model = await txGet(data, model => {
         model.field2 += 1
@@ -496,7 +496,7 @@ class TransactionWriteTest extends QuickTransactionTest {
 
   async testMismatchedKeysForCreateOrPut () {
     const id = uuidv4()
-    const fut = db.Transaction.run(async tx => {
+    const fut = db.Context.run(async tx => {
       tx.createOrPut(TransactionExample,
         { id: id + 'x', field1: 3, field2: 1 },
         { id })
@@ -504,12 +504,12 @@ class TransactionWriteTest extends QuickTransactionTest {
     await expect(fut).rejects.toThrow(db.InvalidParameterError)
 
     // can specify id in new data param (but it must match)
-    await db.Transaction.run(async tx => {
+    await db.Context.run(async tx => {
       tx.createOrPut(TransactionExample,
         { id, field1: 3, field2: 1, objField: { a: { a: 1 } } },
         { id })
     })
-    await db.Transaction.run(async tx => {
+    await db.Context.run(async tx => {
       const item = await tx.get(TransactionExample, id)
       expect(item.id).toBe(id)
       expect(item.field1).toBe(3)
@@ -518,12 +518,12 @@ class TransactionWriteTest extends QuickTransactionTest {
     })
 
     // can omit id in new data param (it's implied)
-    await db.Transaction.run(async tx => {
+    await db.Context.run(async tx => {
       tx.createOrPut(TransactionExample,
         { field1: 33, field2: 11, objField: { a: { a: 11 } } },
         { id, field1: 3 })
     })
-    await db.Transaction.run(async tx => {
+    await db.Context.run(async tx => {
       const item = await tx.get(TransactionExample, id)
       expect(item.id).toBe(id)
       expect(item.field1).toBe(33)
@@ -534,20 +534,20 @@ class TransactionWriteTest extends QuickTransactionTest {
 
   async testUpdateItemNonExisting () {
     const id = 'nonexistent' + uuidv4()
-    let fut = db.Transaction.run(async tx => {
+    let fut = db.Context.run(async tx => {
       tx.update(TransactionExample,
         { id }, { field1: 2 })
     })
     await expect(fut).rejects.toThrow(Error)
 
-    fut = db.Transaction.run(async tx => {
+    fut = db.Context.run(async tx => {
       tx.createOrPut(TransactionExampleWithRequiredField,
         { field1: 3, field2: 1 },
         { id })
     })
     await expect(fut).rejects.toThrow(/missing required value/)
 
-    await db.Transaction.run(async tx => {
+    await db.Context.run(async tx => {
       tx.createOrPut(TransactionExample,
         { field1: 3, field2: 1, arrField: undefined, objField: undefined },
         { id })
@@ -555,7 +555,7 @@ class TransactionWriteTest extends QuickTransactionTest {
     let model = await txGet(id)
     expect(model.field1).toBe(3)
 
-    await db.Transaction.run(async tx => {
+    await db.Context.run(async tx => {
       tx.createOrPut(TransactionExample,
         {
           field1: 3,
@@ -572,7 +572,7 @@ class TransactionWriteTest extends QuickTransactionTest {
 
   async testUpdateNoReturn () {
     // UpdateItem should not return the model for further modifications
-    const fut = db.Transaction.run(async tx => {
+    const fut = db.Context.run(async tx => {
       const ret = tx.update(TransactionExample,
         { id: this.modelName, field1: 1 }, { field1: 2 })
       expect(ret).toBe(undefined)
@@ -582,7 +582,7 @@ class TransactionWriteTest extends QuickTransactionTest {
 
   async testUpdateConflict () {
     // Update fails when original data doesn't match db
-    const fut = db.Transaction.run(async tx => {
+    const fut = db.Context.run(async tx => {
       tx.update(TransactionExample,
         { id: this.modelName, field1: Math.floor(Math.random() * 9999999) },
         { field1: 2 }
@@ -592,7 +592,7 @@ class TransactionWriteTest extends QuickTransactionTest {
   }
 
   async testUpdateInitialUndefined () {
-    const fut = db.Transaction.run(async tx => {
+    const fut = db.Context.run(async tx => {
       tx.update(
         TransactionExample,
         { id: uuidv4(), field1: undefined },
@@ -606,7 +606,7 @@ class TransactionWriteTest extends QuickTransactionTest {
     const data = TransactionExample.data(this.modelName)
     const origModel = await txGet(data)
     const newVal = Math.floor(Math.random() * 9999999)
-    await db.Transaction.run(async tx => {
+    await db.Context.run(async tx => {
       const original = {}
       Object.keys(TransactionExample._attrs).forEach(fieldName => {
         const val = origModel[fieldName]
@@ -622,7 +622,7 @@ class TransactionWriteTest extends QuickTransactionTest {
   }
 
   async testUpdateWithID () {
-    const fut = db.Transaction.run(async tx => {
+    const fut = db.Context.run(async tx => {
       tx.update(
         TransactionExample,
         { id: this.modelName },
@@ -633,7 +633,7 @@ class TransactionWriteTest extends QuickTransactionTest {
 
   async testUpdateOtherFields () {
     await txGet(this.modelName, (m) => { m.field2 = 2 })
-    await db.Transaction.run(async tx => {
+    await db.Context.run(async tx => {
       tx.update(
         TransactionExample,
         { id: this.modelName, field2: 2 },
@@ -647,7 +647,7 @@ class TransactionWriteTest extends QuickTransactionTest {
 
   async testDeleteFieldByUpdate () {
     await txGet(this.modelName, (m) => { m.field2 = 2 })
-    await db.Transaction.run(async tx => {
+    await db.Context.run(async tx => {
       tx.update(
         TransactionExample,
         { id: this.modelName, field2: 2 },
@@ -659,7 +659,7 @@ class TransactionWriteTest extends QuickTransactionTest {
   }
 
   async testCreatePartialModel () {
-    let fut = db.Transaction.run(async tx => {
+    let fut = db.Context.run(async tx => {
       tx.createOrPut(
         TransactionExampleWithRequiredField,
         {
@@ -673,7 +673,7 @@ class TransactionWriteTest extends QuickTransactionTest {
     })
     await expect(fut).rejects.toThrow(/missing required value/)
 
-    fut = db.Transaction.run(async tx => {
+    fut = db.Context.run(async tx => {
       tx.createOrPut(
         TransactionExampleWithRequiredField,
         {
@@ -688,7 +688,7 @@ class TransactionWriteTest extends QuickTransactionTest {
     })
     await expect(fut).rejects.toThrow(/missing required value/)
 
-    await db.Transaction.run(async tx => {
+    await db.Context.run(async tx => {
       tx.createOrPut(
         TransactionExampleWithRequiredField,
         {
@@ -710,7 +710,7 @@ class TransactionWriteTest extends QuickTransactionTest {
   async testCreateNewModel () {
     // New model should work without conditions
     let name = uuidv4()
-    await db.Transaction.run(async tx => {
+    await db.Context.run(async tx => {
       tx.createOrPut(
         TransactionExample,
         {
@@ -727,7 +727,7 @@ class TransactionWriteTest extends QuickTransactionTest {
 
     // New model should work with conditions too
     name = uuidv4()
-    await db.Transaction.run(async tx => {
+    await db.Context.run(async tx => {
       tx.createOrPut(
         TransactionExample,
         {
@@ -744,7 +744,7 @@ class TransactionWriteTest extends QuickTransactionTest {
 
   async testConditionalPut () {
     const name = uuidv4()
-    await db.Transaction.run(async tx => {
+    await db.Context.run(async tx => {
       tx.createOrPut(
         TransactionExample,
         {
@@ -759,7 +759,7 @@ class TransactionWriteTest extends QuickTransactionTest {
     let model = await txGet(name)
     expect(model.field1).toBe(9988234)
 
-    const fut = db.Transaction.run(async tx => {
+    const fut = db.Context.run(async tx => {
       tx.createOrPut(
         TransactionExample,
         {
@@ -772,7 +772,7 @@ class TransactionWriteTest extends QuickTransactionTest {
     })
     await expect(fut).rejects.toThrow(db.TransactionFailedError)
 
-    await db.Transaction.run(async tx => {
+    await db.Context.run(async tx => {
       tx.createOrPut(
         TransactionExample,
         {
@@ -791,7 +791,7 @@ class TransactionWriteTest extends QuickTransactionTest {
   async testTransactionalCreateOrPut () {
     const ids = [uuidv4(), uuidv4()]
     const helper = async (value) => {
-      await db.Transaction.run(async tx => {
+      await db.Context.run(async tx => {
         for (const id of ids) {
           tx.createOrPut(
             TransactionExample,
@@ -824,7 +824,7 @@ class TransactionWriteTest extends QuickTransactionTest {
     const data = { id: modelName, required: 1, field1: 1 }
     const model = await txGetRequired(data)
     const newVal = Math.floor(Math.random() * 99999999)
-    await db.Transaction.run(async tx => {
+    await db.Context.run(async tx => {
       tx.update(
         TransactionExampleWithRequiredField,
         { id: modelName, field1: model.field1 },
@@ -836,7 +836,7 @@ class TransactionWriteTest extends QuickTransactionTest {
   }
 
   async testEmptyUpdate () {
-    const fut = db.Transaction.run(async tx => {
+    const fut = db.Context.run(async tx => {
       tx.update(
         TransactionExample,
         { id: '123', field1: 1 },
@@ -850,7 +850,7 @@ class TransactionWriteTest extends QuickTransactionTest {
    */
   async testDuplicateTracking () {
     // verify create then get on non existing item fails
-    let future = db.Transaction.run(async tx => {
+    let future = db.Context.run(async tx => {
       tx.createOrPut(TransactionExample, { id: 'abc', field1: 1 })
       await tx.get(TransactionExample, { id: 'abc' })
     })
@@ -861,7 +861,7 @@ class TransactionWriteTest extends QuickTransactionTest {
       )
 
     // verify delete then get fails
-    future = db.Transaction.run(async tx => {
+    future = db.Context.run(async tx => {
       tx.delete(TransactionExample.key({ id: 'abc' }))
       await tx.get(TransactionExample, { id: 'abc' })
     })
@@ -875,20 +875,20 @@ class TransactionWriteTest extends QuickTransactionTest {
 
 class TransactionReadOnlyTest extends QuickTransactionTest {
   async testReadOnlyOption () {
-    await expect(db.Transaction.run({ readOnly: true }, async tx => {
+    await expect(db.Context.run({ readOnly: true }, async tx => {
       tx.create(TransactionExample, { id: uuidv4() })
     })).rejects.toThrow('read-only')
   }
 
   async testMakeReadOnlyDuringTx () {
-    await expect(db.Transaction.run(async tx => {
+    await expect(db.Context.run(async tx => {
       tx.makeReadOnly()
       tx.update(TransactionExample, { id: uuidv4() }, { field1: 1 })
     })).rejects.toThrow('read-only')
   }
 
   async testDelete () {
-    await expect(db.Transaction.run(async tx => {
+    await expect(db.Context.run(async tx => {
       tx.makeReadOnly()
       tx.delete(TransactionExample.key({ id: uuidv4() }))
     })).rejects.toThrow('in a read-only transaction')
@@ -903,10 +903,10 @@ class TransactionReadOnlyTest extends QuickTransactionTest {
     }
     const id = uuidv4()
     // create a entry using the old schema
-    await db.Transaction.run(async (tx) => {
+    await db.Context.run(async (tx) => {
       await tx.create(ModelToUpdate, { id, field1: 1 })
     })
-    await db.Transaction.run(async (tx) => {
+    await db.Context.run(async (tx) => {
       tx.makeReadOnly()
       const model = await tx.get(ModelToUpdate, { id })
       expect(model.field1).toBe(1)
@@ -923,7 +923,7 @@ class TransactionReadOnlyTest extends QuickTransactionTest {
 
     // Retrieve the old data, the field2 is assigned the default value,
     // but this change will NOT be committed
-    await db.Transaction.run(async (tx) => {
+    await db.Context.run(async (tx) => {
       tx.makeReadOnly()
       const model = await tx.get(ModelToUpdate, { id })
       expect(model.field1).toBe(1)
@@ -931,7 +931,7 @@ class TransactionReadOnlyTest extends QuickTransactionTest {
     })
 
     // Tx will still fail if the value is set explicitly
-    await expect(db.Transaction.run(async tx => {
+    await expect(db.Context.run(async tx => {
       tx.makeReadOnly()
       const model = await tx.get(ModelToUpdate, { id })
       expect(model.field2).toBe(0)
@@ -943,7 +943,7 @@ class TransactionReadOnlyTest extends QuickTransactionTest {
 class TransactionRetryTest extends QuickTransactionTest {
   async expectRetries (err, maxTries, expectedRuns) {
     let cnt = 0
-    const fut = db.Transaction.run({ retries: maxTries }, () => {
+    const fut = db.Context.run({ retries: maxTries }, () => {
       cnt++
       throw err
     })
@@ -969,13 +969,13 @@ class TransactionRetryTest extends QuickTransactionTest {
 
   testIsRetryableErrors () {
     const err = new Error()
-    expect(db.Transaction.__isRetryable(err)).toBe(false)
+    expect(db.Context.__isRetryable(err)).toBe(false)
 
     err.name = 'TransactionCanceledException'
-    expect(db.Transaction.__isRetryable(err)).toBe(false)
+    expect(db.Context.__isRetryable(err)).toBe(false)
 
     err.code = 'TransactionCanceledException'
-    expect(db.Transaction.__isRetryable(err)).toBe(true)
+    expect(db.Context.__isRetryable(err)).toBe(true)
   }
 }
 
@@ -997,7 +997,7 @@ class TransactionBackoffTest extends QuickTransactionTest {
 
     const err = new Error('')
     err.retryable = true
-    const fut = db.Transaction.run({
+    const fut = db.Context.run({
       retries,
       initialBackoff,
       maxBackoff
@@ -1034,7 +1034,7 @@ class TransactionBackoffTest extends QuickTransactionTest {
 class TransactionConditionCheckTest extends QuickTransactionTest {
   async testReadModelTracking () {
     // Models read from transactions should be tracked
-    await db.Transaction.run(async tx => {
+    await db.Context.run(async tx => {
       const models = []
       const model1 = await tx.get(TransactionExample, uuidv4(),
         { createIfMissing: true })
@@ -1082,7 +1082,7 @@ class TransactionConditionCheckTest extends QuickTransactionTest {
     const id = uuidv4()
 
     // Non-existent model
-    await db.Transaction.run(async tx => {
+    await db.Context.run(async tx => {
       await tx.get(TransactionExample, uuidv4())
       tx.create(TransactionExample, { id })
     })
@@ -1094,7 +1094,7 @@ class TransactionConditionCheckTest extends QuickTransactionTest {
 
     spy.mockReset()
     // Existing model
-    await db.Transaction.run(async tx => {
+    await db.Context.run(async tx => {
       await tx.get(TransactionExample, id)
       tx.create(TransactionExample, { id: uuidv4() })
     })
@@ -1109,13 +1109,13 @@ class TransactionConditionCheckTest extends QuickTransactionTest {
 
 class TransactionDeleteTest extends QuickTransactionTest {
   async getNoCreate (id) {
-    return db.Transaction.run(tx => {
+    return db.Context.run(tx => {
       return tx.get(TransactionExample, id)
     })
   }
 
   async testDeleteParams () {
-    const result = await db.Transaction.run(async tx => {
+    const result = await db.Context.run(async tx => {
       const m1 = await tx.get(TransactionExample, uuidv4(),
         { createIfMissing: true })
       const m2 = await tx.get(TransactionExample, uuidv4(),
@@ -1136,7 +1136,7 @@ class TransactionDeleteTest extends QuickTransactionTest {
   async testDeleteModel () {
     const m = await txGet(uuidv4())
     const key = TransactionExample.key({ id: m.id })
-    const result = await db.Transaction.run(async tx => {
+    const result = await db.Context.run(async tx => {
       const model = await tx.get(key)
       tx.delete(model)
       return model
@@ -1148,7 +1148,7 @@ class TransactionDeleteTest extends QuickTransactionTest {
   async testTxDeleteModel () {
     const m = await txGet(uuidv4())
     const key = TransactionExample.key({ id: m.id })
-    const result = await db.Transaction.run(async tx => {
+    const result = await db.Context.run(async tx => {
       // multiple items goes through TransactWrite
       await tx.get(TransactionExample, uuidv4(), { createIfMissing: true })
       const model = await tx.get(key)
@@ -1162,17 +1162,17 @@ class TransactionDeleteTest extends QuickTransactionTest {
   async testDeleteNonExisting () {
     // Deleting an item that we don't know if exists should silently pass
     const data = TransactionExample.data({ id: uuidv4() })
-    await db.Transaction.run(async tx => {
+    await db.Context.run(async tx => {
       tx.delete(data)
     })
 
-    await db.Transaction.run(async tx => {
+    await db.Context.run(async tx => {
       // creat then delete in the same transaction don't cause conflicts
       const model = await tx.get(data, { createIfMissing: true })
       tx.delete(model)
     })
 
-    await db.Transaction.run(async tx => {
+    await db.Context.run(async tx => {
       // creat then delete in the same transaction don't cause conflicts
       const model = tx.create(data.Cls, data.keyComponents)
       tx.delete(model)
@@ -1183,9 +1183,9 @@ class TransactionDeleteTest extends QuickTransactionTest {
     // Deleting an item that we DO know exists should fail
     const key = TransactionExample.key({ id: uuidv4() })
     await txGet(key.keyComponents.id)
-    let fut = db.Transaction.run({ retries: 0 }, async tx => {
+    let fut = db.Context.run({ retries: 0 }, async tx => {
       const model = await tx.get(key)
-      await db.Transaction.run(async innerTx => {
+      await db.Context.run(async innerTx => {
         innerTx.delete(key)
       })
       tx.delete(model)
@@ -1194,10 +1194,10 @@ class TransactionDeleteTest extends QuickTransactionTest {
       'Tried to delete model with outdated / invalid conditions:')
 
     await txGet(key.keyComponents.id)
-    fut = db.Transaction.run({ retries: 0 }, async tx => {
+    fut = db.Context.run({ retries: 0 }, async tx => {
       await tx.get(TransactionExample, uuidv4())
       const model = await tx.get(key)
-      await db.Transaction.run(async innerTx => {
+      await db.Context.run(async innerTx => {
         innerTx.delete(key)
       })
       tx.delete(model)
@@ -1208,21 +1208,21 @@ class TransactionDeleteTest extends QuickTransactionTest {
 
   async testMissingRequired () {
     // Deleting using key should work even when the model has required fields
-    await db.Transaction.run({ retries: 0 }, async tx => {
+    await db.Context.run({ retries: 0 }, async tx => {
       tx.delete(TransactionExampleWithRequiredField.key({ id: uuidv4() }))
     })
   }
 
   async testDoubleDeletion () {
     const id = uuidv4()
-    let fut = db.Transaction.run({ retries: 0 }, async tx => {
+    let fut = db.Context.run({ retries: 0 }, async tx => {
       tx.delete(TransactionExample.key({ id }))
       tx.delete(TransactionExample.key({ id }))
     })
     await expect(fut).rejects.toThrow(
       'Tried to delete model when it\'s already deleted in the current tx:')
 
-    fut = db.Transaction.run({ retries: 0 }, async tx => {
+    fut = db.Context.run({ retries: 0 }, async tx => {
       const model = await tx.get(TransactionExample.data({ id }),
         { createIfMissing: true })
       tx.delete(model)
@@ -1241,12 +1241,12 @@ class TransactionDeleteTest extends QuickTransactionTest {
       m.field1 = 123
     })
 
-    const fut = db.Transaction.run({ retries: 0 }, async tx => {
+    const fut = db.Context.run({ retries: 0 }, async tx => {
       const model = await tx.get(TransactionExample, id)
       if (model.field1 === 123 && model.id === id) {
         tx.delete(model)
       }
-      await db.Transaction.run(async innerTx => {
+      await db.Context.run(async innerTx => {
         // accessed in outer tx, should fail outer delete
         const model2 = await innerTx.get(TransactionExample, id)
         model2.field1 = 321
@@ -1265,13 +1265,13 @@ class TransactionDeleteTest extends QuickTransactionTest {
       m.field1 = 123
     })
 
-    const fut = db.Transaction.run({ retries: 0 }, async tx => {
+    const fut = db.Context.run({ retries: 0 }, async tx => {
       const model = await tx.get(TransactionExample, id)
       if (model.field1 === 123 && model.id === id) {
         tx.delete(model)
       }
 
-      await db.Transaction.run(async innerTx => {
+      await db.Context.run(async innerTx => {
         const innerModel = await innerTx.get(TransactionExample, id)
 
         // Not accessed in outer tx, should not fail outer delete
@@ -1291,11 +1291,11 @@ class TransactionDeleteTest extends QuickTransactionTest {
     await txGet(id, m => {
       m.field1 = 123
     })
-    const delPromise = db.Transaction.run({ retries: 0 }, async tx => {
+    const delPromise = db.Context.run({ retries: 0 }, async tx => {
       const model = await tx.get(TransactionExample, id)
       model.getField('field1').incrementBy(1)
 
-      await db.Transaction.run(async innerTx => {
+      await db.Context.run(async innerTx => {
         // current value of field should be ignored
         const innerModel = await innerTx.get(TransactionExample, id)
         innerModel.getField('field1').incrementBy(2)
@@ -1309,7 +1309,7 @@ class TransactionDeleteTest extends QuickTransactionTest {
 class TransactionCacheModelsTest extends BaseTest {
   async testGetOne () {
     const id = uuidv4()
-    const ret = await db.Transaction.run({ cacheModels: true }, async tx => {
+    const ret = await db.Context.run({ cacheModels: true }, async tx => {
       const m1 = await tx.get(TransactionExample, id, { createIfMissing: true })
       const m2 = await tx.get(TransactionExample, id)
       return [m1, m2]
@@ -1319,7 +1319,7 @@ class TransactionCacheModelsTest extends BaseTest {
 
   async testGetMissing () {
     const id = uuidv4()
-    const ret = await db.Transaction.run({ cacheModels: true }, async tx => {
+    const ret = await db.Context.run({ cacheModels: true }, async tx => {
       const m1 = await tx.get(TransactionExample, id)
       // Repeatedly getting a missing item should also work
       const m2 = await tx.get(TransactionExample, id)
@@ -1333,7 +1333,7 @@ class TransactionCacheModelsTest extends BaseTest {
 
   async testGetMany () {
     const id = uuidv4()
-    const ret = await db.Transaction.run(async tx => {
+    const ret = await db.Context.run(async tx => {
       tx.enableModelCache()
       const opts = { createIfMissing: true }
       const m2 = await tx.get(TransactionExample, id, opts)
@@ -1348,7 +1348,7 @@ class TransactionCacheModelsTest extends BaseTest {
 
   async testDeletedModels () {
     const id = uuidv4()
-    let fut = db.Transaction.run({ cacheModels: true }, async tx => {
+    let fut = db.Context.run({ cacheModels: true }, async tx => {
       const opts = { createIfMissing: true }
       const model = await tx.get(TransactionExample.data({ id }), opts)
       tx.delete(model)
@@ -1356,7 +1356,7 @@ class TransactionCacheModelsTest extends BaseTest {
     })
     await expect(fut).rejects.toThrow('Model is not a valid cached model')
 
-    fut = db.Transaction.run({ cacheModels: true }, async tx => {
+    fut = db.Context.run({ cacheModels: true }, async tx => {
       const opts = { createIfMissing: true }
       tx.delete(TransactionExample.key({ id }))
       await tx.get(TransactionExample, id, opts)
@@ -1367,7 +1367,7 @@ class TransactionCacheModelsTest extends BaseTest {
   async testPutModels () {
     // Models created with createOrPut cannot be read and modified afterwards
     const id = uuidv4()
-    const fut = db.Transaction.run({ cacheModels: true }, async tx => {
+    const fut = db.Context.run({ cacheModels: true }, async tx => {
       tx.createOrPut(TransactionExample,
         { id, field1: 3 }
       )
@@ -1378,7 +1378,7 @@ class TransactionCacheModelsTest extends BaseTest {
 
   async testPersistedChanges () {
     const id = uuidv4()
-    const res = await db.Transaction.run({ cacheModels: true }, async tx => {
+    const res = await db.Context.run({ cacheModels: true }, async tx => {
       const model = await tx.get(TransactionExample.data({ id }),
         { createIfMissing: true })
       model.field1 = 1.1
@@ -1406,7 +1406,7 @@ class ModelDiffsTest extends BaseTest {
 
   async testNonexistent () {
     const id = uuidv4()
-    const result = await db.Transaction.run(async tx => {
+    const result = await db.Context.run(async tx => {
       await tx.get(TransactionExample, id)
       return tx.getModelDiffs()
     })
@@ -1426,7 +1426,7 @@ class ModelDiffsTest extends BaseTest {
 
   async testGet () {
     const id = uuidv4()
-    const result = await db.Transaction.run(async tx => {
+    const result = await db.Context.run(async tx => {
       const m = await tx.get(TransactionExample, id, { createIfMissing: true })
       m.field1 = 321
       return tx.getModelDiffs()
@@ -1442,7 +1442,7 @@ class ModelDiffsTest extends BaseTest {
 
   async __helperTestGet (func) {
     const ids = [uuidv4(), uuidv4()]
-    const result = await db.Transaction.run(async tx => {
+    const result = await db.Context.run(async tx => {
       await func(tx, ids)
       return tx.getModelDiffs()
     })
@@ -1479,7 +1479,7 @@ class ModelDiffsTest extends BaseTest {
   async testDelete () {
     const id = uuidv4()
     // Blind delete
-    const result = await db.Transaction.run(async tx => {
+    const result = await db.Context.run(async tx => {
       await tx.delete(TransactionExample.key({ id }))
       return tx.getModelDiffs()
     })
@@ -1506,11 +1506,11 @@ class ModelDiffsTest extends BaseTest {
     })
 
     // Create model
-    await db.Transaction.run(async tx => {
+    await db.Context.run(async tx => {
       await tx.get(TransactionExample, { id, field1: 1 },
         { createIfMissing: true })
     })
-    const result2 = await db.Transaction.run(async tx => {
+    const result2 = await db.Context.run(async tx => {
       const m = await tx.get(TransactionExample, id)
       await tx.delete(m)
       return tx.getModelDiffs()
