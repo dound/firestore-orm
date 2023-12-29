@@ -3,8 +3,8 @@ const assert = require('assert')
 const { detailedDiff } = require('deep-object-diff')
 
 const AsyncEmitter = require('./async-emitter')
-const DBError = require('./aws-error')
 const { Data } = require('./data')
+const DBError = require('./db-error')
 const {
   InvalidCachedModelError,
   InvalidModelDeletionError,

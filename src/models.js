@@ -4,8 +4,8 @@ const S = require('@pocketgems/schema')
 const stableStringify = require('fast-json-stable-stringify')
 const deepcopy = require('rfdc')()
 
-const DBError = require('./aws-error')
 const { Data } = require('./data')
+const DBError = require('./db-error')
 const {
   InvalidFieldError,
   InvalidModelDeletionError,
