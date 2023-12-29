@@ -384,24 +384,12 @@ class Model {
   }
 
   /**
-   * Returns the fully-qualified table name (Service ID + tableName).
-   * @private
-   */
-  static get fullTableName () {
-    return process.env.SERVICE + this.tableName
-  }
-
-  static get tableResourceName () {
-    return 'DynamoDBTable' + this.fullTableName
-  }
-
-  /**
    * The table name this model is associated with.
    * Just a convenience wrapper around the static version of this method.
    * @private
    */
-  get __fullTableName () {
-    return Object.getPrototypeOf(this).constructor.fullTableName
+  get __tableName () {
+    return Object.getPrototypeOf(this).constructor.tableName
   }
 
   /**
@@ -433,7 +421,7 @@ class Model {
    */
   static __getParams (encodedKey, options) {
     return {
-      TableName: this.fullTableName,
+      TableName: this.tableName,
       ConsistentRead: !options.inconsistentRead,
       Key: encodedKey
     }
@@ -553,7 +541,7 @@ class Model {
     }
 
     const ret = {
-      TableName: this.__fullTableName,
+      TableName: this.__tableName,
       Item: item
     }
     if (conditionExpr.length !== 0) {
@@ -654,7 +642,7 @@ class Model {
     }
 
     const ret = {
-      TableName: this.__fullTableName,
+      TableName: this.__tableName,
       Key: itemKey
     }
     const actions = []
@@ -685,7 +673,7 @@ class Model {
   __deleteParams () {
     const itemKey = this._id
     const ret = {
-      TableName: this.__fullTableName,
+      TableName: this.__tableName,
       Key: itemKey
     }
     if (!this.isNew) {
@@ -1036,8 +1024,8 @@ class NonExistentItem {
     return this.key.encodedKey
   }
 
-  get __fullTableName () {
-    return this.key.Cls.fullTableName
+  get __tableName () {
+    return this.key.Cls.tableName
   }
 
   __isMutated () {
@@ -1050,7 +1038,7 @@ class NonExistentItem {
       '#_id': '_id'
     }
     return {
-      TableName: this.key.Cls.fullTableName,
+      TableName: this.key.Cls.tableName,
       Key: this.key.encodedKey,
       ConditionExpression: condition,
       ExpressionAttributeNames: attrNames

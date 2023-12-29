@@ -115,7 +115,7 @@ class InvalidModelDeletionError extends GenericModelError {
 class InvalidCachedModelError extends GenericModelError {
   constructor (model) {
     super('Model is not a valid cached model',
-      model.constructor.fullTableName, model._id)
+      model.constructor.tableName, model._id)
   }
 }
 
@@ -130,7 +130,7 @@ class ModelTrackedTwiceError extends GenericModelError {
     const src = getSourceDisplayText(model)
     const trackedSrc = getSourceDisplayText(trackedModel)
     const msg = `Model tracked for ${src} already tracked from ${trackedSrc}`
-    super(msg, model.__fullTableName, model._id)
+    super(msg, model.__tableName, model._id)
     this.model = model
   }
 }
@@ -142,7 +142,7 @@ class ModelTrackedTwiceError extends GenericModelError {
 class ModelDeletedTwiceError extends GenericModelError {
   constructor (model) {
     super('Tried to delete model when it\'s already deleted in the current tx',
-      model.__fullTableName, model._id)
+      model.__tableName, model._id)
     this.model = model
   }
 }

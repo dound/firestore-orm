@@ -234,7 +234,7 @@ class __WriteBatcher {
 
   getModel (tableName, id) {
     for (const model of this.__allModels) {
-      if (model.__fullTableName === tableName &&
+      if (model.__tableName === tableName &&
           model._id === id) {
         return !(model instanceof NonExistentItem) ? model : undefined
       }
@@ -476,7 +476,7 @@ class Transaction {
     const unorderedModels = []
     const modelClsLookup = {}
     for (const key of keys) {
-      modelClsLookup[key.Cls.fullTableName] = key.Cls
+      modelClsLookup[key.Cls.tableName] = key.Cls
       const param = key.Cls.__getParams(key.encodedKey, params)
       const getsPerTable = reqItems[param.TableName] || { Keys: [] }
       getsPerTable.Keys.push(param.Key)
@@ -528,7 +528,7 @@ class Transaction {
       const key = keys[idx]
       const addModel = () => {
         for (const model of unorderedModels) {
-          if (model.__fullTableName === key.Cls.fullTableName &&
+          if (model.__tableName === key.Cls.tableName &&
               model._id === key.encodedKey) {
             models.push(model)
             return true
@@ -605,7 +605,7 @@ class Transaction {
       if (this.options.cacheModels) {
         for (const keyOrData of arr) {
           const cachedModel = this.__writeBatcher.getModel(
-            keyOrData.Cls.fullTableName,
+            keyOrData.Cls.tableName,
             keyOrData.encodedKey
           )
           if (cachedModel) {
@@ -642,7 +642,7 @@ class Transaction {
         const findModel = (tableName, id) => {
           for (let index = 0; index < keysOrDataToGet.length; index++) {
             const toGetKeyOrData = keysOrDataToGet[index]
-            if (tableName === toGetKeyOrData.Cls.fullTableName &&
+            if (tableName === toGetKeyOrData.Cls.tableName &&
               id === toGetKeyOrData.encodedKey) {
               return fetchedModels[index]
             }
@@ -650,7 +650,7 @@ class Transaction {
 
           for (const model of cachedModels) {
             // istanbul ignore else
-            if (tableName === model.constructor.fullTableName &&
+            if (tableName === model.constructor.tableName &&
               id === model._id) {
               return model
             }
@@ -658,7 +658,7 @@ class Transaction {
         }
         for (const keyOrData of arr) {
           ret.push(findModel(
-            keyOrData.Cls.fullTableName,
+            keyOrData.Cls.tableName,
             keyOrData.encodedKey
           ))
         }

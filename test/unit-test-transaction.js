@@ -241,7 +241,7 @@ class TransactionGetTest extends QuickTransactionTest {
       const ret = {
         Responses: {},
         UnprocessedKeys: {
-          [TransactionExample.fullTableName]: { Keys: [{ _id: '456' }] }
+          [TransactionExample.tableName]: { Keys: [{ _id: '456' }] }
         }
       }
       return {
