@@ -618,12 +618,12 @@ class CompoundFieldTest extends BaseTest {
   async testInvalidFieldTypes () {
     expect(() => {
       // eslint-disable-next-line no-new
-      new __CompoundField({ idx: '1', fields: [this.__numField, 'str'] })
+      new __CompoundField({ fields: [this.__numField, 'str'] })
     }).toThrow(InvalidFieldError)
   }
 
   async testValueEncoding () {
-    const field = new __CompoundField({ idx: '1', fields: [this.__numField, this.__strField, this.__objField] })
+    const field = new __CompoundField({ fields: [this.__numField, this.__strField, this.__objField] })
     expect(field.get()).toBe(['10', '{"a":{"b":1}}', 'test'].join('\0'))
     this.__numField.incrementBy(5)
     this.__objField.__value.a.b = 4
@@ -712,15 +712,15 @@ class CompoundFieldTest extends BaseTest {
   }
 
   async testUpdateExpression () {
-    const field = new __CompoundField({ idx: '1', isNew: false, fields: [this.__numField] })
-    expect(field.__updateExpression('1')).toEqual([])
+    const field = new __CompoundField({ isNew: false, fields: [this.__numField] })
+    expect(field.__updateExpression()).toEqual([])
 
     const exprKey = '_1'
-    const field2 = new __CompoundField({ idx: '1', isNew: true, fields: [this.__numField] })
+    const field2 = new __CompoundField({ isNew: true, fields: [this.__numField] })
     expect(field2.__updateExpression(exprKey)).toEqual(
       ['#1=_1', { [exprKey]: field2.__value }, false])
 
-    const field3 = new __CompoundField({ idx: '1', isNew: false, fields: [this.__numField, this.__strField] })
+    const field3 = new __CompoundField({ isNew: false, fields: [this.__numField, this.__strField] })
     this.__numField.incrementBy(10)
     const [set, vals, remove] = field3.__updateExpression(exprKey)
     expect(set).toBe('#1=_1')
@@ -744,7 +744,6 @@ class AbstractFieldTest extends BaseTest {
   testAbstractMethods () {
     class DummyCls extends __FieldInterface {}
     const obj = new DummyCls()
-    expect(() => obj.__awsName).toThrow(NotImplementedError)
     expect(() => obj.mutated).toThrow(NotImplementedError)
     expect(() => obj.__mayHaveMutated).toThrow(NotImplementedError)
     expect(() => obj.accessed).toThrow(NotImplementedError)

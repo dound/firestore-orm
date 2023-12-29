@@ -66,7 +66,6 @@ function fieldFromFieldOptions (Cls, options) {
   options = db.__private.__Field.__validateFieldOptions(
     'fakeTestData', isKey, name, schema)
   return new Cls({
-    idx: 0,
     name,
     opts: options,
     val: initVal,

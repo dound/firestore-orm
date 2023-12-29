@@ -67,16 +67,15 @@ class Model {
     setupKey('_id', this.constructor.KEY, this.constructor.__keyOrder, vals)
 
     // add user-defined fields from FIELDS & key components from KEY
-    let fieldIdx = 0
     for (const [name, opts] of Object.entries(this.constructor._attrs)) {
-      this.__addField(fieldIdx++, name, opts, vals)
+      this.__addField(name, opts, vals)
     }
 
     for (let field of this.constructor.__compoundFields) {
       if (typeof (field) === 'string') {
         field = [field]
       }
-      this.__addCompoundField(fieldIdx++, field, isNew)
+      this.__addCompoundField(field, isNew)
     }
 
     Object.seal(this)
@@ -93,7 +92,7 @@ class Model {
   async finalize () {
   }
 
-  __addField (idx, name, opts, vals) {
+  __addField (name, opts, vals) {
     let valSpecified = Object.hasOwnProperty.call(vals, name)
     let val = vals[name]
     if (!valSpecified) {
@@ -114,7 +113,6 @@ class Model {
       // can't force validation of undefined values for blind updates because
       //   they are permitted to omit fields
       const field = new Cls({
-        idx,
         name,
         opts,
         val,
@@ -143,7 +141,7 @@ class Model {
     })
   }
 
-  __addCompoundField (idx, fieldNames, isNew) {
+  __addCompoundField (fieldNames, isNew) {
     const name = this.constructor.__encodeCompoundFieldName(fieldNames)
     if (this.__attr_getters[name] !== undefined || name === '_id') {
       return
@@ -153,7 +151,7 @@ class Model {
       if (this.__cached_attrs[name]) {
         return this.__cached_attrs[name]
       }
-      const field = new __CompoundField({ idx, name, isNew, fields })
+      const field = new __CompoundField({ name, isNew, fields })
       this.__cached_attrs[name] = field
       return field
     }

@@ -21,10 +21,6 @@ class __FieldInterface {
     }
   }
 
-  get __awsName () {
-    throw new NotImplementedError()
-  }
-
   get mutated () {
     throw new NotImplementedError()
   }
@@ -175,7 +171,6 @@ class __Field extends __BaseField {
    * @param {boolean} isForDelete whether this field is part of an delete
    */
   constructor ({
-    idx,
     name,
     opts,
     val,
@@ -195,7 +190,6 @@ class __Field extends __BaseField {
      * @instance
      * @member {String} name The name of the owning property.
      */
-    this.__idx = idx
     this.name = name
     this.__value = undefined
     this.__readInitialValue = false // If get is called
@@ -248,16 +242,6 @@ class __Field extends __BaseField {
         }
       }
     }
-  }
-
-  /**
-   * Name used in AWS expressions.
-   *
-   * This name is short for performance reasons, and is used with
-   * ExpressionAttributeNames to avoid collisions with reserved AWS names.
-   */
-  get __awsName () {
-    return `#${this.__idx}`
   }
 
   /**
@@ -535,20 +519,15 @@ class ArrayField extends __Field {
  * @memberof Internal
  */
 class __CompoundField extends __BaseField {
-  constructor ({ idx, name, isNew, fields }) {
+  constructor ({ name, isNew, fields }) {
     super()
     if (fields.every(field => field instanceof __Field) === false) {
       throw new InvalidFieldError(name, 'Compound field can contain only Field objects')
     }
     this.name = name
     this.__fields = fields
-    this.__idx = idx
     this.__isNew = isNew
     this.__initialValue = this.__value
-  }
-
-  get __awsName () {
-    return `#${this.__idx}`
   }
 
   get mutated () {
