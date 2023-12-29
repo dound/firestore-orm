@@ -53,18 +53,17 @@ class Model {
 
     // Decode _id (stored in DB as string or number, but can be a compound
     // object composed of multiple values of various types)
-    const setupKey = (attrName, keySchema, keyOrder, vals) => {
+    const setupKey = (attrName, keyOrder, vals) => {
       const attrVal = vals[attrName]
       if (attrVal === undefined) {
         return
       }
 
       delete vals[attrName]
-      const useNumericKey = this.constructor.__useNumericKey(keySchema)
       Object.assign(vals, this.constructor.__decodeCompoundValue(
-        keyOrder, attrVal, attrName, useNumericKey))
+        keyOrder, attrVal, attrName))
     }
-    setupKey('_id', this.constructor.KEY, this.constructor.__keyOrder, vals)
+    setupKey('_id', this.constructor.__keyOrder, vals)
 
     // add user-defined fields from FIELDS & key components from KEY
     for (const [name, opts] of Object.entries(this.constructor._attrs)) {
@@ -224,23 +223,6 @@ class Model {
     }
   }
 
-  static __useNumericKey (keySchema) {
-    const schemas = Object.values(keySchema)
-    const isUniqueKey = schemas.length === 1
-    if (!isUniqueKey) {
-      return false
-    }
-    let schemaType
-    if (typeof (schemas[0]) === 'string') {
-      const classSchemas = { ...this.KEY, ...this.__getFields() }
-      schemaType = classSchemas[schemas[0]].getProp('type')
-    } else {
-      schemaType = schemas[0].getProp('type')
-    }
-    const isNumericKey = ['integer', 'number'].includes(schemaType)
-    return isNumericKey
-  }
-
   /**
    * Defines the key. Every item in the database is uniquely identified by its'
    * key. The default key is a UUIDv4.
@@ -270,25 +252,14 @@ class Model {
   static FIELDS = {}
 
   get _id () {
-    return this.__getKey(this.constructor.__keyOrder, this.constructor.KEY)
-  }
-
-  __getKey (keyOrder, keySchema) {
-    const useNumericKey = this.constructor.__useNumericKey(keySchema)
     return this.constructor.__encodeCompoundValue(
-      keyOrder,
+      this.constructor.__keyOrder,
       new Proxy(this, {
         get: (target, prop, receiver) => {
           return target.getField(prop).__value
         }
-      }),
-      useNumericKey
+      })
     )
-  }
-
-  static __getId (vals) {
-    const useNumericKey = this.__useNumericKey(this.KEY)
-    return this.__encodeCompoundValue(this.__keyOrder, vals, useNumericKey)
   }
 
   /**
@@ -340,7 +311,8 @@ class Model {
         throw new InvalidParameterError('data', 'unknown field ' + key)
       }
     })
-    return [this.__getId(keyComponents), keyComponents, modelData]
+    const _id = this.__encodeCompoundValue(this.__keyOrder, keyComponents)
+    return [_id, keyComponents, modelData]
   }
 
   /**
@@ -671,7 +643,7 @@ class Model {
    * @param {Object} values maps component names to values; may have extra
    *   fields (they will be ignored)
    */
-  static __encodeCompoundValue (keyOrder, values, useNumericKey) {
+  static __encodeCompoundValue (keyOrder, values) {
     if (keyOrder.length === 0) {
       return undefined
     }
@@ -685,9 +657,6 @@ class Model {
         throw new InvalidFieldError(fieldName, 'must be provided')
       }
       const valueType = validateValue(fieldName, fieldOpts, givenValue)
-      if (useNumericKey) {
-        return givenValue
-      }
       if (valueType === String) {
         // the '\0' character cannot be stored in string fields. If you need to
         // store a string containing this character, then you need to store it
@@ -715,14 +684,7 @@ class Model {
    * @param {String} strVal the string representation of a compound value
    * @param {String} attrName which key we're parsing
    */
-  static __decodeCompoundValue (keyOrder, val, attrName, useNumericKey) {
-    if (useNumericKey) {
-      const fieldName = keyOrder[0]
-      const fieldOpts = this._attrs[fieldName]
-      validateValue(fieldName, fieldOpts, val)
-      return { [fieldName]: val }
-    }
-
+  static __decodeCompoundValue (keyOrder, val, attrName) {
     // Assume val is otherwise a string
     const pieces = val.split('\0')
     if (pieces.length !== keyOrder.length) {
