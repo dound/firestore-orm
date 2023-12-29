@@ -303,10 +303,9 @@ class Model {
   }
 
   /**
-   * The table name this model is associated with, excluding the service ID
-   * prefix. This is the model's class name. However, subclasses may choose to
-   * override this method and provide duplicated table name for co-existed
-   * models.
+   * The table name this model is associated with. This is the model's class
+   * name. However, subclasses may choose to override this method and provide
+   * duplicated table name for co-existed models.
    *
    * @type {String}
    */
