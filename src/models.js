@@ -240,17 +240,6 @@ class Model {
       assert.ok(tableName.indexOf('_') < 0, 'not include underscores')
       assert.ok(tableName[0].match(/[A-Z]/), 'start with a capitalized letter')
       assert.ok(tableName.match(/[a-zA-Z0-9]*/), 'only use letters or numbers')
-      // we will eventually need to allow this in some cases since some
-      // singular words also end in the letter "s"
-      if (tableName.endsWith('s')) {
-        const whiteList = [
-          'Stats',
-          'Status',
-          'Pass'
-        ]
-        const isWhiteListed = whiteList.some(p => tableName.endsWith(p))
-        assert.ok(isWhiteListed, 'not be plural')
-      }
     } catch (e) {
       throw new Error(`Bad table name "${tableName}": it must ${e.message}`)
     }
