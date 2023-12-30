@@ -849,12 +849,18 @@ class TransactionRetryTest extends QuickTransactionTest {
     err.retryable = true
     await this.expectRetries(err, 2, 3)
 
+    // error 10 (lock contention) should be retried
     err = new Error('fake')
-    err.code = 'ConditionalCheckFailedException'
+    err.code = 10
+    err.details = 'fake firestore lock error'
     await this.expectRetries(err, 1, 2)
 
-    err.code = 'TransactionCanceledException'
-    await this.expectRetries(err, 1, 2)
+    // error 6 (create failed because item already exists) should not be retried
+    err.code = 6
+    err.details = 'fake firestore error'
+    // this error requires an Element
+    err.message = 'gobbly gook Element { type: "X"\n name: "Y"\n } random stuff'
+    await this.expectRetries(err, 1, 1)
   }
 
   testIsRetryableErrors () {
