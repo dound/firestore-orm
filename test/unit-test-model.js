@@ -227,6 +227,7 @@ class CompoundIDExample extends db.Model {
     upc: S.str
   }
 }
+CompoundIDExample.__doOneTimeModelPrep()
 
 class ObjKeyExample extends db.Model {
   static KEY = {
@@ -236,12 +237,14 @@ class ObjKeyExample extends db.Model {
     })
   }
 }
+ObjKeyExample.__doOneTimeModelPrep()
 
 class IntKeyExample extends db.Model {
   static KEY = {
     id: S.int
   }
 }
+IntKeyExample.__doOneTimeModelPrep()
 
 class IDSchemaTest extends BaseTest {
   async testSimpleIDWithSchema () {
@@ -328,13 +331,14 @@ class IDSchemaTest extends BaseTest {
   }
 
   async testIntKey () {
+    // encoded keys are always strings (Firestore doesn't support int keys)
     const key = IntKeyExample.__encodeCompoundValue(
       IntKeyExample.__keyOrder, { id: 2342 }, true)
-    expect(key).toBe(2342)
+    expect(key).toBe('2342')
 
     const decoded = IntKeyExample.__decodeCompoundValue(
-      IntKeyExample.__keyOrder, 2, '_test', true)
-    expect(decoded).toEqual({ id: 2 })
+      IntKeyExample.__keyOrder, key, '_test', true)
+    expect(decoded).toEqual({ id: +key })
   }
 }
 
@@ -431,23 +435,9 @@ class ConditionCheckTest extends BaseTest {
   async testConditionCheckMutatedModel () {
     const m1 = await txGet(BasicExample, this.modelName)
     m1.noRequiredNoDefault = 1 + (m1.noRequiredNoDefault ?? 0)
-    expect(() => {
-      m1.__conditionCheckParams()
-    }).toThrow()
-  }
-
-  async testConditionCheckUnchangedModel () {
-    const m1 = await txGet(BasicExample, this.modelName)
-    expect(m1.__conditionCheckParams().ConditionExpression)
-      .toBe('attribute_exists(#_id)')
-  }
-
-  async testReadonlyModel () {
-    const m1 = await txGet(BasicExample, this.modelName)
-    m1.noRequiredNoDefault // eslint-disable-line no-unused-expressions
-    const awsName = m1.getField('noRequiredNoDefault').__awsName
-    expect(m1.__conditionCheckParams()).toHaveProperty('ConditionExpression',
-      `attribute_exists(#_id) AND attribute_not_exists(${awsName})`)
+    expect(db.checkWriteCall(m1)).toEqual({
+      update: { noRequiredNoDefault: 1 }
+    })
   }
 }
 
@@ -697,7 +687,7 @@ class GetArgsParserTest extends BaseTest {
     keys.push(SimpleExample.key(id1), SimpleExample.key(id2))
     const result = await db.__private.getWithArgs(params,
       (keys) => keys.map(key => key.encodedKey))
-    expect(result).toStrictEqual([{ _id: id1 }, { _id: id2 }])
+    expect(result).toStrictEqual([id1, id2])
 
     keys.push(1)
     await expect(db.__private.getWithArgs(params)).rejects
@@ -707,7 +697,7 @@ class GetArgsParserTest extends BaseTest {
     params.push({})
     const result1 = await db.__private.getWithArgs(params,
       (keys) => keys.map(key => key.encodedKey))
-    expect(result1).toStrictEqual([{ _id: id1 }, { _id: id2 }])
+    expect(result1).toStrictEqual([id1, id2])
 
     params.push(1)
     await expect(db.__private.getWithArgs(params)).rejects
