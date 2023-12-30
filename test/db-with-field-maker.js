@@ -16,6 +16,20 @@ db.verifyDoc = async (ModelCls, id, data) => {
   }
 }
 
+db.checkWriteCall = (model) => {
+  let ret
+  function logIt (kind, docRef, data) {
+    expect(model.__key.docRef.path).toBe(docRef.path)
+    ret = { [kind]: data }
+  }
+  const fakeDBCtx = {}
+  for (const k of ['create', 'update']) {
+    fakeDBCtx[k] = (docRef, data) => logIt(k, docRef, data)
+  }
+  model.__write({ __dbCtx: fakeDBCtx })
+  return ret
+}
+
 // create helper functions to construct fields for testing purposes
 db.__private.fields.forEach(Cls => {
   db.__private[Cls.name] = opts => fieldFromFieldOptions(Cls, opts)

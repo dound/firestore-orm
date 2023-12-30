@@ -1,3 +1,4 @@
+const { FieldValue } = require('@google-cloud/firestore')
 const S = require('@pocketgems/schema')
 const { BaseTest, runTests } = require('@pocketgems/unit-test')
 const uuidv4 = require('uuid').v4
@@ -5,9 +6,6 @@ const uuidv4 = require('uuid').v4
 const { Context } = require('../src/context')
 
 const db = require('./db-with-field-maker')
-
-const CONDITION_EXPRESSION_STR = 'ConditionExpression'
-const UPDATE_EXPRESSION_STR = 'UpdateExpression'
 
 class BadModelTest extends BaseTest {
   check (cls, msg) {
@@ -366,46 +364,7 @@ class WriteTest extends BaseTest {
 
   async testNoIDInUpdateCondition () {
     const m1 = await txGet(BasicExample, this.modelName)
-    const params = m1.__updateParams()
-    if (params[CONDITION_EXPRESSION_STR]) {
-      expect(params[CONDITION_EXPRESSION_STR]).not.toContain('id=')
-    }
-  }
-
-  async testNoIdInPutCondition () {
-    await txGet(BasicExample, this.modelName, model => {
-      const params = model.__putParams()
-      if (params.ConditionExpression) {
-        expect(params.ConditionExpression).not.toContain('id=')
-      }
-    })
-  }
-
-  async testAttributeEncoding () {
-    await txGet(BasicExample, this.modelName, model => {
-      model.noRequiredNoDefault += 1
-      const params = model.__updateParams()
-      const awsName = model.getField('noRequiredNoDefault').__awsName
-      expect(params[CONDITION_EXPRESSION_STR]).toContain(
-        awsName + '=:_')
-      expect(params.ExpressionAttributeValues).toHaveProperty(
-        ':_0')
-    })
-  }
-
-  async testNoAccessProperty () {
-    // Building block for strong Context isolation levels
-    const m1 = await txGet(BasicExample, this.modelName)
-    let params = m1.__updateParams()
-    expect(params.ConditionExpression).toBe('attribute_exists(#_id)')
-    expect(params).not.toHaveProperty(UPDATE_EXPRESSION_STR)
-
-    // Make sure no fields are "accessed" while getting params
-    m1.__putParams()
-    params = m1.__updateParams()
-    expect(params.ConditionExpression).toBe('attribute_exists(#_id)')
-    expect(params).not.toHaveProperty(UPDATE_EXPRESSION_STR)
-    expect(m1.__cached_attrs.id.accessed).toBe(false)
+    expect(db.checkWriteCall(m1)).toEqual({ update: {} })
   }
 
   async testWriteSetToUndefinedProp () {
@@ -440,18 +399,11 @@ class WriteTest extends BaseTest {
     expect(model.noRequiredNoDefault).toBe(undefined)
   }
 
-  async testNoLockOption () {
-    const model = await txGet(BasicExample, this.modelName)
-    model.getField('noRequiredNoDefault').incrementBy(1)
-    expect(model.__updateParams().ExpressionAttributeNames)
-      .not.toContain('noRequiredNoDefault')
-  }
-
   async testPutNoLock () {
     const model = await txGet(BasicExample, this.modelName)
     model.getField('noRequiredNoDefault').incrementBy(1)
-    expect(model.__putParams().ExpressionAttributeNames)
-      .not.toContain('noRequiredNoDefault')
+    expect(db.checkWriteCall(model)).toEqual(
+      { update: { noRequiredNoDefault: FieldValue.increment(1) } })
   }
 
   async testRetry () {
