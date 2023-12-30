@@ -352,15 +352,12 @@ class TransactionWriteTest extends QuickTransactionTest {
     expect((await txGet(id1)).id).toBe(id1)
     expect((await txGet(id2)).id).toBe(id2)
     try {
+      // try to create both of them again
       await db.Context.run(createBoth)
       assert.fail('should not get here')
     } catch (err) {
-      expect(err.message).toMatch(/^Multiple Non-retryable Errors:/)
-      const errPrefix =
-        'Tried to recreate an existing model: unittestTransactionExample _id='
-      expect(err.message).toContain(errPrefix + id1)
-      expect(err.message).toContain(errPrefix + id2)
-      expect(err.message.split('\n').length).toBe(3)
+      // error will only report the first issue encountered
+      expect(err.message).toMatch(/Tried to recreate an existing model/)
     }
   }
 
