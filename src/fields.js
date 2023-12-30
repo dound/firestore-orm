@@ -251,6 +251,9 @@ class __Field extends __BaseField {
         return FieldValue.delete()
       }
     }
+    // complex types (objects and arrays) can be modified without calling set()
+    // so we need to double-check the validation for them at this point
+    this.validate()
     return deepcopy(this.__value)
   }
 
