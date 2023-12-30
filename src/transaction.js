@@ -7,19 +7,16 @@ const { Data } = require('./data')
 const DBError = require('./db-error')
 const {
   InvalidCachedModelError,
-  InvalidModelDeletionError,
-  InvalidModelUpdateError,
   InvalidOptionsError,
   InvalidParameterError,
-  ModelAlreadyExistsError,
-  ModelDeletedTwiceError,
+  DeletedTwiceError,
   TransactionFailedError,
   WriteAttemptedInReadOnlyTxError,
   ModelTrackedTwiceError
 } = require('./errors')
 const { Key } = require('./key')
-const { Model, NonExistentItem } = require('./models')
-const { sleep, ITEM_SOURCE, loadOptionDefaults } = require('./utils')
+const { Model } = require('./models')
+const { sleep, loadOptionDefaults } = require('./utils')
 
 async function getWithArgs (args, callback) {
   if (!args || !(args instanceof Array) || args.length === 0) {
@@ -66,252 +63,9 @@ async function getWithArgs (args, callback) {
 }
 
 /**
- * Batches put and update (potentially could support delete) requests to
- * DynamoDB within a transaction and sent on commit.
- * @private
- * @memberof Internal
- *
- * @example
- * const batcher = new __WriteBatcher()
- * batcher.write(model)
- * batcher.write(otherModel)
- * await batcher.commit()
- */
-class __WriteBatcher {
-  constructor () {
-    this.__allModels = []
-    this.__toWrite = []
-    this.__toCheck = {}
-    this.resolved = false
-  }
-
-  /**
-   * Gets params for the request according to method, batches the params.
-   * Favors update over put for writing to DynamoDB, except for a corner case
-   * where update disallows write operations without an UpdateExpression. This
-   * happens when a new model is created with no fields besides keys populated
-   * and written to DB.
-   *
-   * @param {Model} model the model to write
-   * @access private
-   */
-  async __write (model) {
-    if (!model.__isMutated()) {
-      throw new Error('Attempting to write an unchanged model ' +
-        model.toString())
-    }
-
-    if (!this.__toCheck[model]) {
-      if (this.__toCheck[model] === false) {
-        throw new Error(`Attempting to write model ${model.toString()} twice`)
-      } else {
-        throw new Error('Attempting to write untracked model ' +
-          model.toString())
-      }
-    }
-    await model.finalize()
-    this.__toCheck[model] = false
-
-    let action
-    let params
-
-    if (model.__toBeDeleted) {
-      action = 'Delete'
-      params = model.__deleteParams()
-    } else {
-      action = 'Update'
-      params = model.__updateParams()
-      if (!Object.prototype.hasOwnProperty.call(
-        params,
-        'UpdateExpression'
-      )) {
-        // When a new item with no values other than the keys are written,
-        // we have to use Put, else dynamodb would throw.
-        action = 'Put'
-        params = model.__putParams()
-      }
-    }
-    this.__toWrite.push({ [action]: params })
-  }
-
-  /**
-   * Start tracking models in a transaction. So when the batched write commits,
-   * Optimistic locking on those readonly models is automatically performed.
-   * @param {Model} model A model to track.
-   */
-  track (model) {
-    const trackedModel = this.__toCheck[model]
-    if (trackedModel !== undefined) {
-      /**
-       * Cannot track two instances pointing to the same item in dynamodb,
-       */
-      if (model.__src.isDelete) {
-        throw new ModelDeletedTwiceError(model)
-      } else if (!(model.__src.isGet || model.__src.isCreate) ||
-                 !(trackedModel instanceof NonExistentItem)) {
-        throw new ModelTrackedTwiceError(model, trackedModel)
-      }
-    }
-    this.__allModels.push(model)
-    this.__toCheck[model] = model
-  }
-
-  /**
-   * Return all tracked models.
-   */
-  get trackedModels () {
-    return Object.values(this.__allModels)
-  }
-
-  /**
-   * Commits batched writes by sending DynamoDB requests.
-   *
-   * @returns {Boolean} whether any model is written to DB.
-   */
-  async commit (expectWrites) {
-    assert(!this.resolved, 'Already wrote models.')
-    this.resolved = true
-
-    const promises = []
-    for (const model of this.__allModels) {
-      if (this.__toCheck[model] && model.__isMutated(expectWrites)) {
-        promises.push(this.__write(model))
-      }
-    }
-    await Promise.all(promises)
-
-    if (this.__toWrite.length === 0) {
-      return false
-    }
-    if (!expectWrites) {
-      throw new WriteAttemptedInReadOnlyTxError(this.__toWrite)
-    }
-
-    if (this.__allModels.length === 1 &&
-        this.__toWrite.length === 1) {
-      await this.__allModels[0].__write()
-      return true
-    }
-    const toCheck = Object.values(this.__toCheck)
-      .map(m => {
-        if (m === false) {
-          // removed from __toCheck; updateExpression created in __write
-          return undefined
-        }
-        return m.__conditionCheckParams()
-      })
-      .filter(cond => !!cond)
-      .map(cond => {
-        return { ConditionCheck: cond }
-      })
-    const items = [...this.__toWrite, ...toCheck]
-    const params = {
-      TransactItems: items
-    }
-    await this.transactWrite(params)
-    return true
-  }
-
-  async transactWrite (txWriteParams) {
-    const request = this.documentClient.transactWrite(txWriteParams)
-    request.on('extractError', (response) => {
-      this.__extractError(request, response)
-    })
-    await request.promise().catch(e => {
-      throw new DBError('transactWrite', e)
-    })
-  }
-
-  /**
-   * Find a model with the same TableName and Key from a list of models
-   * @param {String} tableName
-   * @param {Object} key { _id: { S: '' } }
-   */
-  __getModel (tableName, key) {
-    const id = Object.values(key._id)[0]
-    return this.getModel(tableName, id)
-  }
-
-  getModel (tableName, id) {
-    for (const model of this.__allModels) {
-      if (model.__tableName === tableName &&
-          model._id === id) {
-        return !(model instanceof NonExistentItem) ? model : undefined
-      }
-    }
-  }
-
-  __extractError (request, response) {
-    // istanbul ignore if
-    if (response.httpResponse.body === undefined) {
-      const { statusCode, statusMessage } = response.httpResponse
-      console.log(`error code ${statusCode}, message ${statusMessage}`)
-      return
-    }
-
-    const responseBody = response.httpResponse.body.toString()
-    const reasons = JSON.parse(responseBody).CancellationReasons
-    assert(reasons, 'error body missing reasons: ' + responseBody)
-    if (response.error) {
-      response.error.allErrors = []
-    }
-    for (let idx = 0; idx < reasons.length; idx++) {
-      const reason = reasons[idx]
-      if (reason.Code === 'ConditionalCheckFailed') {
-        // Items in reasons maps 1to1 to items in request, here we do a reverse
-        // lookup to find the original model that triggered the error.
-        const transact = request.params.TransactItems[idx]
-        const method = Object.keys(transact)[0]
-        let model
-        const tableName = transact[method].TableName
-        switch (method) {
-          case 'Update':
-          case 'ConditionCheck':
-          case 'Delete':
-            model = this.__getModel(
-              tableName,
-              transact[method].Key
-            )
-            break
-          case 'Put':
-            model = this.__getModel(
-              tableName,
-              transact[method].Item
-            )
-            break
-        }
-        let CustomErrorCls
-        if (model.__toBeDeleted) {
-          CustomErrorCls = InvalidModelDeletionError
-        } else if (model.__src.isCreate) {
-          CustomErrorCls = ModelAlreadyExistsError
-        } else if (model.__src.isUpdate) {
-          CustomErrorCls = InvalidModelUpdateError
-        }
-        if (CustomErrorCls) {
-          const err = new CustomErrorCls(tableName, model._id)
-          if (response.error) {
-            response.error.allErrors.push(err)
-          } else {
-            // response.error appears to always be set in the wild; but we have
-            // this case just in case we're wrong or something changes
-            response.error = err
-            response.error.allErrors = [err]
-          }
-        }
-      }
-    }
-    // if there were no custom errors, then use the original error
-    /* istanbul ignore if */
-    if (response.error && !response.error.allErrors.length) {
-      response.error.allErrors.push(response.error)
-    }
-  }
-}
-
-/**
- * Context provides a context for interacting with Firestore. Despite the
- * name, it may or may not use a Firestore transaction.
+ * Context provides a context for interacting with Firestore. It will use a
+ * transaction if requested (e.g., we're making changes OR we need consistent
+ * reads across multiple items).
  */
 class Context {
   /**
@@ -334,7 +88,7 @@ class Context {
    */
 
   /**
-   * Returns the default [options]{@link ContextOptions} for a transaction.
+   * Returns the default [options]{@link ContextOptions} for a db context.
    */
   get defaultOptions () {
     return {
@@ -348,9 +102,16 @@ class Context {
   }
 
   /**
-   * @param {ContextOptions} [options] Options for the transaction
+   * @param {ContextOptions} [options] Options for this context
    */
   constructor (options) {
+    // watch for changes in models we access through this context
+    this.__trackedModelsMap = {} // document path -> index of model in the list
+    this.__trackedModelsList = []
+
+    // our reference to the db client changes to a transaction ref if needed
+    this.__dbCtx = Key.firestoreClient
+
     const defaults = this.defaultOptions
     this.options = loadOptionDefaults(options, defaults)
 
@@ -379,6 +140,37 @@ class Context {
       }
     }
     this.isUsingTx = !this.options.readOnly
+  }
+
+  /**
+   * Track models which have been accessed.
+   * @param {Model} model A model to track.
+   */
+  __watchForChangesToSave (model) {
+    const path = model.__key.docRef.path
+    const trackedModelIdx = this.__trackedModelsMap[path]
+    if (trackedModelIdx !== undefined) {
+      const trackedModel = this.__trackedModelsList[trackedModelIdx]
+      if (trackedModel) {
+        throw new ModelTrackedTwiceError(model, trackedModel)
+      } else {
+        this.__trackedModelsList[trackedModelIdx] = model
+      }
+    } else {
+      this.__trackedModelsMap[path] = this.__trackedModelsList.length
+      this.__trackedModelsList.push(model)
+    }
+  }
+
+  __saveChangedModels () {
+    for (const model of this.__trackedModelsList) {
+      if (model && (model.isNew || model.__isMutated(!this.options.readOnly))) {
+        if (this.options.readOnly) {
+          throw new WriteAttemptedInReadOnlyTxError(model)
+        }
+        model.__write(this)
+      }
+    }
   }
 
   /**
@@ -427,8 +219,8 @@ class Context {
    * @param {GetParams} params Params for how to get the item
    */
   async __getItem (key, params) {
-    const docRef = key.Cls.__getDocRef(key.encodedKey)
-    const doc = await this.firestoreClient.get(docRef)
+    const docRef = key.docRef
+    const doc = await this.__dbCtx.get(docRef)
       .catch(
         // istanbul ignore next
         e => {
@@ -444,25 +236,25 @@ class Context {
    *   fetched using the same params.
    */
   async __getItems (keys, params) {
-    const docRefs = keys.map(key => key.Cls.__getDocRef(key.encodedKey))
-    const docs = await this.firestoreClient.getAll(...docRefs)
+    const docRefs = keys.map(key => key.docRef)
+    const docs = await this.__dbCtx.getAll(...docRefs)
       .catch(
         // istanbul ignore next
         e => {
           throw new DBError('getAll', e)
         })
-    return docs.map((doc, idx) => this.__gotItem(keys[idx], params, doc))
+    const promises = docs.map((doc, i) => this.__gotItem(keys[i], params, doc))
+    return Promise.all(promises)
   }
 
-  __gotItem (key, params, doc) {
+  async __gotItem (key, params, doc) {
     const isNew = !doc.exists
-    if (!params.createIfMissing && !isNew) {
-      this.__writeBatcher.track(new NonExistentItem(key))
+    if (!params.createIfMissing && isNew) {
       return undefined
     }
-    const vals = isNew ? key.vals : doc.data()
-    const model = new key.Cls(ITEM_SOURCE.GET, isNew, vals)
-    this.__writeBatcher.track(model)
+    const vals = isNew ? key.vals : (await doc.data())
+    const model = new key.Cls(isNew, vals)
+    this.__watchForChangesToSave(model)
     return model
   }
 
@@ -507,10 +299,7 @@ class Context {
       let keysOrDataToGet = []
       if (this.options.cacheModels) {
         for (const keyOrData of arr) {
-          const cachedModel = this.__writeBatcher.getModel(
-            keyOrData.Cls.tableName,
-            keyOrData.encodedKey
-          )
+          const cachedModel = this.__trackedModelsMap[keyOrData.docRef.path]
           if (cachedModel) {
             if (!cachedModel.__src.canBeCached || cachedModel.__toBeDeleted) {
               throw new InvalidCachedModelError(cachedModel)
@@ -571,96 +360,23 @@ class Context {
   }
 
   /**
-   * Updates an item without reading from DB. If the item doesn't exist in DB,
-   * ConditionCheckFailure will be thrown.
+   * Updates an item without reading from DB. Fails if item is not in the db.
    *
-   * @param {Class} Cls The model's class.
-   * @param {CompositeID|Object} original A superset of CompositeID,
-   *   field's values. Used as conditions for the update
-   * @param {Object} updated Updated fields for the item, without CompositeID
-   *   fields.
+   * @param {CompositeID} key The key to update
+   * @param {Object} data Updated fields for the item
    */
-  update (Cls, original, updated) {
-    if (Object.values(original).filter(d => d === undefined).length !== 0) {
-      // We don't check for attribute_not_exists anyway.
-      throw new InvalidParameterError(
-        'original',
-        'original values must not be undefined')
-    }
-    if (!updated || Object.keys(updated).length === 0) {
-      throw new InvalidParameterError(
-        'updated',
-        'must have values to be updated')
-    }
-
-    const data = Cls.__splitKeysAndData(original)[2] // this also checks keys
-    const model = new Cls(ITEM_SOURCE.UPDATE, false, original)
+  async updateWithoutRead (key, data) {
     Object.keys(data).forEach(k => {
-      model.getField(k).get() // Read to show in ConditionExpression
-    })
-
-    Object.keys(updated).forEach(key => {
-      if (Cls._attrs[key].isKey) {
-        throw new InvalidParameterError(
-          'updated', 'must not contain key fields')
+      if (key.Cls._attrs[k].isKey) {
+        throw new InvalidParameterError('data', 'must not contain key fields')
       }
-      model[key] = updated[key]
     })
 
-    this.__writeBatcher.track(model)
-
-    // Don't return model, since it should be closed to further modifications.
-    // return model
-  }
-
-  /**
-   * Creates or puts an item without reading from DB.
-   * It differs from {@link update} in that:
-   *   a) If item doesn't exists, a new item is created in DB
-   *   b) If item does exists, fields present locally will overwrite values in
-   *      DB, fields absent locally will be removed from DB.
-   *
-   * @param {Class} Cls The model's class.
-   * @param {CompositeID|Object} original A superset of CompositeID,
-   *   field's values. Non-key values are used for conditional locking
-   * @param {Object} updated Final values for the model.
-   *   Values for every field in the model must be provided. Fields with
-   *   `undefined` value will be removed from DB.
-   */
-  createOrPut (Cls, updated, original = {}) {
-    const newData = { ...updated }
-    for (const key of Object.keys(original)) {
-      if (Object.hasOwnProperty.call(newData, key)) {
-        // cannot change a key component's value
-        if (Cls.__KEY_COMPONENT_NAMES.has(key)) {
-          if (newData[key] !== original[key]) {
-            throw new InvalidParameterError(updated,
-              'key components values in updated must match (or be omitted)')
-          }
-        }
-      } else {
-        // old values which aren't explicitly changed are kept the same
-        newData[key] = original[key]
-      }
-    }
-    // We create the item we intend to write (with newData), and then update
-    // its __initialValue for any preconditions requested (with `original`).
-    // Creating the model with newData validates that newData specified are
-    // complete, valid item all on its own.
-    const model = new Cls(ITEM_SOURCE.CREATE_OR_PUT, true, newData)
-    Object.keys(original).forEach(key => {
-      const field = model.getField(key)
-      // we set the initial value and then mark it as read so that the write
-      // batcher later generates a database update which is conditioned on the
-      // the item's current value in the database for this field being
-      // original[key] (if the item existed)
-      field.__initialValue = original[key]
-      field.get()
-    })
-    this.__writeBatcher.track(model)
-
-    // Don't return model, since it should be closed to further modifications.
-    // return model
+    const vals = { ...key.keyComponents, ...data }
+    const model = new key.Cls(true, vals, true)
+    await model.finalize()
+    const docRef = key.docRef
+    await this.__dbCtx.update(docRef, model.toJSON())
   }
 
   /**
@@ -672,8 +388,8 @@ class Context {
    *   plus any data for Fields on the Model.
    */
   create (Cls, data) {
-    const model = new Cls(ITEM_SOURCE.CREATE, true, { ...data })
-    this.__writeBatcher.track(model)
+    const model = new Cls(true, { ...data })
+    this.__watchForChangesToSave(model)
     return model
   }
 
@@ -685,14 +401,26 @@ class Context {
    *
    * @param {List<Key|Model>} args Keys and Models
    */
-  delete (...args) {
+  async delete (...args) {
     for (const a of args) {
+      let key = a
       if (a instanceof Model) {
-        a.__markForDeletion()
-      } else if (a instanceof Key) {
-        const model = new a.Cls(ITEM_SOURCE.DELETE, true,
-          a.keyComponents)
-        this.__writeBatcher.track(model)
+        key = a.__key
+      }
+      if (key instanceof Key) {
+        const path = key.docRef.path
+        const trackedModelIdx = this.__trackedModelsMap[path]
+        if (trackedModelIdx !== undefined) {
+          if (trackedModelIdx === null) {
+            // already asked to delete it
+            throw new DeletedTwiceError(key.Cls.tableName, key.encodedKey)
+          }
+          this.__trackedModelsList[trackedModelIdx] = null
+        } else {
+          this.__trackedModelsMap[path] = this.__trackedModelsList.length
+          this.__trackedModelsList.push(null)
+        }
+        await this.__dbCtx.delete(key.docRef)
       } else {
         throw new InvalidParameterError('args', 'Must be models and keys')
       }
@@ -700,21 +428,13 @@ class Context {
   }
 
   __reset () {
-    this.__writeBatcher = new __WriteBatcher()
     this.__eventEmitter = new AsyncEmitter()
+    this.__trackedModelsList = []
+    this.__trackedModelsMap = {}
   }
 
   static __isRetryable (err) {
-    const retryableErrors = {
-      ConditionalCheckFailedException: true,
-      TransactionCanceledException: true
-    }
-
     if (err.retryable) {
-      return true
-    }
-
-    if (retryableErrors[err.code]) {
       return true
     }
     return false
@@ -733,16 +453,18 @@ class Context {
   async __tryToRun (func) {
     const ctx = this
     if (ctx.isUsingTx) {
-      ctx.firestoreClient.runTransaction(async txFirestoreClient => {
+      return await Key.firestoreClient.runTransaction(async tx => {
         ctx.__reset()
-        ctx.firestoreClient = txFirestoreClient
+        ctx.__dbCtx = tx
         try {
-          return await func(ctx)
+          const ret = await func(ctx)
+          this.__saveChangedModels()
+          return ret
         } finally {
-          ctx.firestoreClient = Context.firestoreClient
+          ctx.__dbCtx = Key.firestoreClient
         }
       }, {
-        readOnly: ctx.readOnly,
+        readOnly: ctx.options.readOnly,
         maxAttempts: 1
       })
     } else {
@@ -764,14 +486,11 @@ class Context {
     const maxBackoff = this.options.maxBackoff
     for (let tryCnt = 0; tryCnt <= this.options.retries; tryCnt++) {
       try {
-        this.__reset()
         const ret = await this.__tryToRun(func)
-        await this.__writeBatcher.commit(!this.options.readOnly)
         await this.__eventEmitter.emit(this.constructor.EVENTS.POST_COMMIT)
         return ret
       } catch (err) {
-        // make sure EVERY error is retryable; allErrors is present if err
-        // was thrown in __WriteBatcher.commit()'s onError handler
+        // make sure EVERY error is retryable
         const allErrors = err.allErrors || [err]
         const errorMessages = []
         for (let i = 0; i < allErrors.length; i++) {
@@ -818,7 +537,7 @@ class Context {
   }
 
   /**
-   * Runs a function in transaction, using specified parameters.
+   * Runs a function in transaction if needed, using specified parameters.
    *
    * If a non-retryable error is thrown while running the transaction, it will
    * be re-raised.
@@ -853,7 +572,7 @@ class Context {
     const allBefore = []
     const allAfter = []
     const allDiff = []
-    for (const model of this.__writeBatcher.trackedModels) {
+    for (const model of this.__trackedModelsList) {
       // istanbul ignore if
       if (!filter(model)) {
         continue
@@ -876,7 +595,6 @@ class Context {
 }
 
 module.exports = {
-  __WriteBatcher,
   Context,
   getWithArgs
 }

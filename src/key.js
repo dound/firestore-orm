@@ -13,6 +13,11 @@ class Key {
     this.encodedKey = encodedKey
     this.keyComponents = keyComponents
   }
+
+  get docRef () {
+    const db = Key.firestoreDB
+    return db.collection(this.Cls.tableName).doc(this.encodedKey)
+  }
 }
 
 /**

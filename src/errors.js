@@ -89,20 +89,9 @@ class ModelAlreadyExistsError extends GenericModelError {
  * Thrown when a model is to be updated, but condition check failed.
  * @memberof Errors
  */
-class InvalidModelUpdateError extends GenericModelError {
+class UpdateRequiredModelToExistError extends GenericModelError {
   constructor (table, _id) {
-    super('Tried to update model with outdated / invalid conditions',
-      table, _id)
-  }
-}
-
-/**
- * Thrown when a model is to be deleted, but condition check failed.
- * @memberof Errors
- */
-class InvalidModelDeletionError extends GenericModelError {
-  constructor (table, _id) {
-    super('Tried to delete model with outdated / invalid conditions',
+    super('Tried to update model but it did not exist as required',
       table, _id)
   }
 }
@@ -139,11 +128,10 @@ class ModelTrackedTwiceError extends GenericModelError {
  * Thrown when a model is being deleted more than once.
  * @memberof Errors
  */
-class ModelDeletedTwiceError extends GenericModelError {
-  constructor (model) {
+class DeletedTwiceError extends GenericModelError {
+  constructor (tableName, _id) {
     super('Tried to delete model when it\'s already deleted in the current tx',
-      model.__tableName, model._id)
-    this.model = model
+      tableName, _id)
   }
 }
 
@@ -177,14 +165,13 @@ module.exports = {
   InvalidCachedModelError,
   InvalidFieldError,
   InvalidFilterError,
-  InvalidModelDeletionError,
-  InvalidModelUpdateError,
   InvalidOptionsError,
   InvalidParameterError,
   ModelAlreadyExistsError,
-  ModelDeletedTwiceError,
+  DeletedTwiceError,
   ModelTrackedTwiceError,
   NotImplementedError,
   TransactionFailedError,
+  UpdateRequiredModelToExistError,
   WriteAttemptedInReadOnlyTxError
 }

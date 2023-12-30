@@ -201,12 +201,12 @@ class TransactionGetTest extends QuickTransactionTest {
 
   async testTransactGet () {
     const newName = uuidv4()
-    const [m1, m2] = await db.Context.run(async (tx) => {
-      const ret = await tx.get([
+    const [m1, m2] = await db.Context.run(async (ctx) => {
+      const ret = await ctx.get([
         TransactionExample.key(this.modelName),
         TransactionExample.key(newName)
       ])
-      expect(tx.__writeBatcher.trackedModels.length).toBe(2)
+      expect(ctx.__trackedModelsList.length).toBe(2)
       return ret
     })
     expect(m1.id).toBe(this.modelName)
@@ -433,28 +433,6 @@ class TransactionWriteTest extends QuickTransactionTest {
     await expect(fut).rejects.toThrow(db.TransactionFailedError)
     const m = await txGet(data)
     expect(m.field2).toBe(result)
-  }
-
-  async testNoChangeNoWrite () {
-    await db.Context.run(async (tx) => {
-      const txModel = await tx.get(TransactionExample, this.modelName,
-        { createIfMissing: true })
-      expect(txModel.isNew).toBe(false)
-
-      await expect(tx.__writeBatcher.__write(txModel)).rejects.toThrow()
-      expect(tx.__writeBatcher.__toWrite.length).toBe(0)
-    })
-  }
-
-  async testNewModelNoChange () {
-    await db.Context.run(async (tx) => {
-      const txModel = await tx.get(TransactionExample, uuidv4(),
-        { createIfMissing: true })
-      expect(txModel.isNew).toBe(true)
-      await tx.__writeBatcher.__write(txModel)
-      expect(tx.__writeBatcher.__toWrite.length).toBe(1)
-      expect(tx.__writeBatcher.__toWrite[0]).toHaveProperty('Put')
-    })
   }
 
   async testWriteSnapshot () {
@@ -1031,82 +1009,6 @@ class TransactionBackoffTest extends QuickTransactionTest {
   }
 }
 
-class TransactionConditionCheckTest extends QuickTransactionTest {
-  async testReadModelTracking () {
-    // Models read from transactions should be tracked
-    await db.Context.run(async tx => {
-      const models = []
-      const model1 = await tx.get(TransactionExample, uuidv4(),
-        { createIfMissing: true })
-      models.push(model1)
-      models.push(await tx.get(TransactionExample.data(uuidv4()),
-        { createIfMissing: true }))
-      const [model2, model3] = await tx.get([
-        TransactionExample.data(uuidv4()),
-        TransactionExample.data(uuidv4())
-      ],
-      { createIfMissing: true })
-      models.push(model2)
-      models.push(model3)
-
-      const modelNames = new Set(models.map(m => m.toString()))
-      let toCheckKeys = tx.__writeBatcher.__toCheck
-      toCheckKeys = Object.keys(toCheckKeys)
-        .filter(key => toCheckKeys[key] !== false)
-      let result = new Set(toCheckKeys)
-      expect(result).toStrictEqual(modelNames)
-
-      function checkModel (m) {
-        modelNames.delete(m.toString())
-        toCheckKeys = tx.__writeBatcher.__toCheck
-        toCheckKeys = Object.keys(toCheckKeys)
-          .filter(key => toCheckKeys[key] !== false)
-        result = new Set(toCheckKeys)
-        expect(result).toStrictEqual(modelNames)
-      }
-
-      await tx.__writeBatcher.__write(model1)
-      checkModel(model1)
-
-      model2.field1 = 0
-      await tx.__writeBatcher.__write(model2)
-      checkModel(model2)
-    })
-  }
-
-  async TestDataExistence () {
-    // Even if a model was only read, but no properties are accessed, a
-    // condition should be generated when the tx commits
-    const __WriteBatcher = db.__private.__WriteBatcher
-    const spy = jest.spyOn(__WriteBatcher.prototype, 'transactWrite')
-    const id = uuidv4()
-
-    // Non-existent model
-    await db.Context.run(async tx => {
-      await tx.get(TransactionExample, uuidv4())
-      tx.create(TransactionExample, { id })
-    })
-    expect(spy).toHaveBeenCalledTimes(1)
-    let callArgs = spy.mock.calls[0]
-    expect(callArgs.length).toBe(1)
-    expect(callArgs[0].TransactItems[1].ConditionCheck.ConditionExpression)
-      .toBe('attribute_not_exists(#_id)')
-
-    spy.mockReset()
-    // Existing model
-    await db.Context.run(async tx => {
-      await tx.get(TransactionExample, id)
-      tx.create(TransactionExample, { id: uuidv4() })
-    })
-    expect(spy).toHaveBeenCalledTimes(1)
-    callArgs = spy.mock.calls[0]
-    expect(callArgs.length).toBe(1)
-    expect(callArgs[0].TransactItems[1].ConditionCheck.ConditionExpression)
-      .toBe('attribute_exists(#_id)')
-    spy.mockRestore()
-  }
-}
-
 class TransactionDeleteTest extends QuickTransactionTest {
   async getNoCreate (id) {
     return db.Context.run(tx => {
@@ -1549,7 +1451,6 @@ class ModelDiffsTest extends BaseTest {
 runTests(
   ParameterTest,
   TransactionBackoffTest,
-  TransactionConditionCheckTest,
   TransactionDeleteTest,
   TransactionEdgeCaseTest,
   TransactionGetTest,

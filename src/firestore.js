@@ -21,10 +21,9 @@ const {
   ObjectField,
   StringField
 } = require('./fields')
-const { UniqueKeyList } = require('./key')
+const { Key, UniqueKeyList } = require('./key')
 const { Model } = require('./models')
 const {
-  __WriteBatcher,
   getWithArgs,
   Context
 } = require('./transaction')
@@ -39,24 +38,14 @@ const {
 /**
  * Setup the Firestore library before returning symbols clients can use.
  *
- * @param {Object} [firestoreClient] client to interact with db items; from
+ * @param {Object} [firestoreDB] client to interact with db items; from
  *   firebase/app::initializeApp
  * @returns {Object} Symbols that clients of this library can use.
  * @private
  */
-function setup (firestoreClient) {
-  // Make Firestore database client available to these classes
-  const clsWithDBAccess = [
-    __WriteBatcher,
-    Model,
-    Context
-  ]
-  clsWithDBAccess.forEach(Cls => {
-    Cls.firestoreClient = firestoreClient
-    Cls.prototype.firestoreClient = firestoreClient
-  })
-
-  const exportAsClass = {
+function setup (firestoreDB) {
+  Key.firestoreDB = firestoreDB
+  const toExport = {
     S,
     Model,
     UniqueKeyList,
@@ -75,12 +64,9 @@ function setup (firestoreClient) {
     TransactionFailedError,
     WriteAttemptedInReadOnlyTxError
   }
-
-  const toExport = Object.assign({}, exportAsClass)
   if (Number(process.env.INDEBUGGER)) {
     toExport.__private = {
       __Field,
-      __WriteBatcher,
       fields: [
         ArrayField,
         BooleanField,

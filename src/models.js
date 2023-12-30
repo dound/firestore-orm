@@ -2,26 +2,18 @@ const assert = require('assert')
 
 const S = require('@pocketgems/schema')
 const stableStringify = require('fast-json-stable-stringify')
-const deepcopy = require('rfdc')()
 
 const { Data } = require('./data')
-const DBError = require('./db-error')
 const {
   InvalidFieldError,
-  InvalidModelDeletionError,
-  InvalidModelUpdateError,
-  InvalidParameterError,
-  ModelAlreadyExistsError,
-  ModelDeletedTwiceError
+  InvalidParameterError
 } = require('./errors')
 const { __Field, SCHEMA_TYPE_TO_FIELD_CLASS_MAP } = require('./fields')
 const { Key } = require('./key')
 const {
   validateValue,
-  ITEM_SOURCES,
   makeItemString,
-  SCHEMA_TYPE_TO_JS_TYPE_MAP,
-  sleep
+  SCHEMA_TYPE_TO_JS_TYPE_MAP
 } = require('./utils')
 
 /**
@@ -32,18 +24,10 @@ class Model {
    * Create a representation of a database Item. Should only be used by the
    * library.
    */
-  constructor (src, isNew, vals) {
+  constructor (isNew, vals, isPartial = false) {
+    assert.ok(typeof isNew === 'boolean', 'isNew must be a boolean')
+    assert.ok(typeof isPartial === 'boolean', 'isPartial must be a boolean')
     this.isNew = !!isNew
-    if (!ITEM_SOURCES.has(src)) {
-      throw new InvalidParameterError('src', 'invalid item source type')
-    }
-    this.__src = src
-
-    // track whether this item has been written to the db yet
-    this.__written = false
-
-    // track whether this item has been marked for deletion
-    this.__toBeDeleted = src.isDelete
 
     // __cached_attrs has a __Field subclass object for each non-key attribute.
     this.__cached_attrs = {}
@@ -51,19 +35,13 @@ class Model {
     // __cached_attrs has a __Field subclass object for each non-key attribute.
     this.__attr_getters = {}
 
-    // Decode _id (stored in DB as string or number, but can be a compound
-    // object composed of multiple values of various types)
-    const setupKey = (attrName, keyOrder, vals) => {
-      const attrVal = vals[attrName]
-      if (attrVal === undefined) {
-        return
-      }
-
-      delete vals[attrName]
-      Object.assign(vals, this.constructor.__decodeCompoundValue(
-        keyOrder, attrVal, attrName))
-    }
-    setupKey('_id', this.constructor.__keyOrder, vals)
+    // Decode _id (stored in DB as string)
+    const _id = vals._id
+    delete vals._id
+    const keyComponents = this.constructor.__decodeCompoundValue(
+      this.constructor.__keyOrder, _id)
+    Object.assign(vals, keyComponents)
+    this.__key = new Key(this.constructor, _id, keyComponents)
 
     // add user-defined fields from FIELDS & key components from KEY
     for (const [name, opts] of Object.entries(this.constructor._attrs)) {
@@ -99,7 +77,7 @@ class Model {
         val: vals[name],
         valIsFromDB: !this.isNew,
         valSpecified: valSpecified,
-        isForUpdate: this.__src.isUpdate,
+        isForUpdate: this.__src.isUpdateMustExist,
         isForDelete: this.__src.isDelete
       })
       Object.seal(field)
@@ -315,263 +293,24 @@ class Model {
     return [_id, keyComponents, modelData]
   }
 
-  /**
-   * @access package
-   * @param {String} encodedKey
-   * @returns {DocumentReference} a reference to the Firestore document
-   */
-  static __getDocRef (encodedKey) {
-    return this.firestoreClient.collection(this.tableName).doc(encodedKey)
-  }
-
-  /**
-   * Generates parameters for a put request to DynamoDB.
-   * Put overrides item entirely, removing untracked fields from DynamoDB.
-   * This library supports optimistic locking for put. Since put overrides all
-   * fields of an item, optimistic locking is performed on all fields. This
-   * means if any fields is modified after the item is read calling put would
-   * fail. Effectively the lock applies to the entire item, which may lead to
-   * more contention. Have update in most use cases is more desirable.
-   *
-   * @access package
-   * @returns parameters for a put request to DynamoDB
-   */
-  __putParams () {
-    // istanbul ignore next
-    if (this.__src.isUpdate) {
-      // This is really unreachable code.
-      // The only way to get here is when the model is mutated (to complete a
-      // write) and has no field mutated (so PUT is used instead of UPDATE).
-      // It can happen only when the model isNew.
-      // However, when items are setup from updateItem method, we pretend the
-      // items to be not new. Hence, the condition will never be satisfied.
-      // conditions.push('attribute_exists(_id)')
-      assert(false, 'This should be unreachable unless something is broken.')
-    }
-
-    const item = this._id
-    const accessedFields = []
-    let exprCount = 0
-    for (const [key, getter] of Object.entries(this.__attr_getters)) {
-      const field = getter()
-      field.validate()
-
-      if (field.isKey) {
-        continue
-      }
-      if (field.__value !== undefined) {
-        // Not having undefined keys effectively removes them.
-        // Also saves some bandwidth.
-        item[key] = deepcopy(field.__value)
-      }
-
-      // Put works by overriding the entire item,
-      // all fields needs to be written.
-      // No need to check for field.accessed, pretend everything is accessed,
-      // except for keys, since they don't change
-      accessedFields.push(field)
-    }
-
-    let conditionExpr
-    const exprAttrNames = {}
-    const isCreateOrPut = this.__src.isCreateOrPut
-    const exprValues = {}
-    if (this.isNew) {
-      if (isCreateOrPut) {
-        const conditions = []
-        for (const field of accessedFields) {
-          const exprKey = `:_${exprCount++}`
-          const [condition, vals] = field.__conditionExpression(exprKey)
-          if (condition &&
-            (!isCreateOrPut ||
-             !condition.startsWith('attribute_not_exists'))) {
-            conditions.push(condition)
-            Object.assign(exprValues, vals)
-            exprAttrNames[field.__awsName] = field.name
-          }
-        }
-        conditionExpr = conditions.join(' AND ')
-
-        if (conditionExpr.length !== 0) {
-          const [cond, names, vals] = this.__nonexistentModelCondition()
-          conditionExpr = `${cond} OR
-            (${conditionExpr})`
-          Object.assign(exprAttrNames, names)
-          Object.assign(exprValues, vals)
-        }
-      } else {
-        const [cond, names, vals] = this.__nonexistentModelCondition()
-        conditionExpr = cond
-        Object.assign(exprAttrNames, names)
-        Object.assign(exprValues, vals)
-      }
-    } else {
-      const conditions = [
-        'attribute_exists(#_id)'
-      ]
-      exprAttrNames['#_id'] = '_id'
-      for (const field of accessedFields) {
-        const exprKey = `:_${exprCount++}`
-        const [condition, vals] = field.__conditionExpression(exprKey)
-        if (condition) {
-          conditions.push(condition)
-          Object.assign(exprValues, vals)
-          exprAttrNames[field.__awsName] = field.name
-        }
-      }
-      conditionExpr = conditions.join(' AND ')
-    }
-
-    const ret = {
-      TableName: this.__tableName,
-      Item: item
-    }
-    if (conditionExpr.length !== 0) {
-      ret.ConditionExpression = conditionExpr
-    }
-    if (Object.keys(exprValues).length) {
-      ret.ExpressionAttributeValues = exprValues
-    }
-    if (Object.keys(exprAttrNames).length) {
-      ret.ExpressionAttributeNames = exprAttrNames
-    }
-    return ret
-  }
-
-  /**
-   * Generates parameters for an update request to DynamoDB.
-   * Update only overrides fields that got updated to a different value.
-   * Untracked fields will not be removed from DynamoDB. This library supports
-   * optimistic locking for update. Since update only touches specific fields
-   * of an item, optimistic locking is only performed on fields accessed (read
-   * or write). This locking mechanism results in less likely contentions,
-   * hence is preferred over put.
-   *
-   * @access package
-   * @param {Boolean} omitUpdates (default = false)
-   * When True, generates only condition expressions for read values;
-   * skipping update expressions, related Attribute Names/Values and schema validation,
-   * with the expectation that any accessed value is either unmodified (and therefore valid)
-   * or explicitly unchecked (written but not read).
-   * @returns parameters for a update request to DynamoDB
-   */
-  __updateParams (omitUpdates = false) {
-    const conditions = []
-    const exprAttrNames = {}
-    const exprValues = {}
-    const itemKey = this._id
-    const sets = []
-    const removes = []
-    const accessedFields = []
-    let exprCount = 0
-
-    const isUpdate = this.__src.isUpdate
+  __write (ctx) {
+    // ModelAlreadyExistsError
+    const docRef = this.__key.docRef
+    const data = {}
     for (const field of Object.values(this.__cached_attrs)) {
-      if (field.isKey) {
-        // keys are never updated and not explicitly represented in store
-        continue
-      }
-      if (field.accessed) {
-        accessedFields.push(field)
-      }
-      if (!field.__mayHaveMutated || omitUpdates) {
-        continue
-      }
-
-      field.validate()
-
-      const exprKey = `:_${exprCount++}`
-      const [set, vals, remove] = field.__updateExpression(exprKey)
-      if (set) {
-        sets.push(set)
-        Object.assign(exprValues, vals)
-      }
-      if (remove) {
-        removes.push(field.__awsName)
-      }
-      if (set || remove) {
-        exprAttrNames[field.__awsName] = field.name
-      }
-    }
-
-    if (this.isNew) {
-      if (!this.__src.isCreateOrPut) {
-        const [cond, names, vals] = this.__nonexistentModelCondition()
-        conditions.push(cond)
-        Object.assign(exprAttrNames, names)
-        Object.assign(exprValues, vals)
-      }
-    } else {
-      conditions.push('attribute_exists(#_id)')
-      exprAttrNames['#_id'] = '_id'
-
-      for (const field of accessedFields) {
-        const exprKey = `:_${exprCount++}`
-        const [condition, vals] = field.__conditionExpression(exprKey)
-        if (
-          condition &&
-          (!isUpdate || !condition.startsWith('attribute_not_exists'))
-        ) {
-          // From update, initial values for fields aren't setup.
-          // We only care about the fields that got setup. Here if the
-          // condition is attribute_not_exists, we know the field wasn't setup,
-          // so ignore it.
-          conditions.push(condition)
-          Object.assign(exprValues, vals)
-          exprAttrNames[field.__awsName] = field.name
+      if (!field.isKey) {
+        if (this.isNew || field.hasChangesToCommit(true)) {
+          data[field.name] = field.__value
         }
       }
     }
 
-    const ret = {
-      TableName: this.__tableName,
-      Key: itemKey
+    if (this.isNew) {
+      // write the entire document from scratch (fails if it already exists)
+      ctx.create(docRef, data)
+    } else {
+      ctx.update(docRef, data)
     }
-    const actions = []
-    if (sets.length) {
-      actions.push(`SET ${sets.join(',')}`)
-    }
-    if (removes.length) {
-      actions.push(`REMOVE ${removes.join(',')}`)
-    }
-    if (actions.length) {
-      // NOTE: This is optional in DynamoDB's update call,
-      // but required in the transactWrite.update counterpart.
-      ret.UpdateExpression = actions.join(' ')
-    }
-    if (conditions.length) {
-      ret.ConditionExpression = conditions.join(' AND ')
-    }
-    if (Object.keys(exprValues).length) {
-      ret.ExpressionAttributeValues = exprValues
-    }
-    // istanbul ignore else
-    if (Object.keys(exprAttrNames).length) {
-      ret.ExpressionAttributeNames = exprAttrNames
-    }
-    return ret
-  }
-
-  __deleteParams () {
-    const itemKey = this._id
-    const ret = {
-      TableName: this.__tableName,
-      Key: itemKey
-    }
-    if (!this.isNew) {
-      const conditions = []
-      const attrNames = {}
-      // Since model is not new, conditionCheckParams will always have contents
-      const conditionCheckParams = this.__updateParams(true)
-      conditions.push(conditionCheckParams.ConditionExpression)
-      Object.assign(attrNames, conditionCheckParams.ExpressionAttributeNames)
-      ret.ExpressionAttributeValues =
-          conditionCheckParams.ExpressionAttributeValues
-
-      ret.ConditionExpression = conditions.join(' AND ')
-      ret.ExpressionAttributeNames = attrNames
-    }
-    return ret
   }
 
   /**
@@ -585,9 +324,6 @@ class Model {
     if (this.isNew) {
       return true
     }
-    if (this.__toBeDeleted) {
-      return true
-    }
     for (const field of Object.values(this.__cached_attrs)) {
       if (field.hasChangesToCommit(expectWrites)) {
         // If any field has changes that need to be committed,
@@ -596,24 +332,6 @@ class Model {
       }
     }
     return false
-  }
-
-  /**
-   * Used for optimistic locking within transactWrite requests, when the model
-   * was read in a transaction, and was subsequently used for updating other
-   * models but never written back to DB. Having conditionCheck ensures this
-   * model's data hasn't been changed so the updates to other models are also
-   * correct.
-   *
-   * @access package
-   * @returns {Boolean} An Object for ConditionCheck request.
-   */
-  __conditionCheckParams () {
-    assert.ok(this.isNew || !this.__isMutated(),
-      'Model is mutated, write it instead!')
-    // Since model cannot be new, conditionCheckExpression will never be empty
-    // (_id must exist)
-    return this.__updateParams(true)
   }
 
   /**
@@ -665,14 +383,13 @@ class Model {
    *
    * @param {Array<String>} keyOrder order of keys in the string representation
    * @param {String} strVal the string representation of a compound value
-   * @param {String} attrName which key we're parsing
    */
-  static __decodeCompoundValue (keyOrder, val, attrName) {
+  static __decodeCompoundValue (keyOrder, val) {
     // Assume val is otherwise a string
     const pieces = val.split('\0')
     if (pieces.length !== keyOrder.length) {
       throw new InvalidFieldError(
-        attrName, 'failed to parse key: incorrect number of components')
+        'KEY', 'failed to parse key: incorrect number of components')
     }
 
     const compoundID = {}
@@ -743,86 +460,6 @@ class Model {
     return this.__splitKeysAndData(vals)
   }
 
-  __markForDeletion () {
-    if (this.__toBeDeleted) {
-      throw new ModelDeletedTwiceError(this)
-    }
-    this.__toBeDeleted = true
-  }
-
-  __writeMethod () {
-    if (this.__toBeDeleted) {
-      return 'delete'
-    }
-    const usePut = this.__src.isCreateOrPut
-    return usePut ? 'put' : 'update'
-  }
-
-  /**
-   * Writes model to database. Uses DynamoDB update under the hood.
-   * @access package
-   */
-  async __write () {
-    assert.ok(!this.__written, 'May write once')
-    this.__written = true
-
-    const method = this.__writeMethod()
-    const params = this[`__${method}Params`]()
-    const retries = 3
-    let millisBackOff = 40
-    for (let tryCnt = 0; tryCnt <= retries; tryCnt++) {
-      try {
-        await this.documentClient[method](params).promise().catch(
-          // istanbul ignore next
-          e => { throw new DBError('write model', e) }
-        )
-        return
-      } catch (error) {
-        if (!error.retryable) {
-          const isConditionalCheckFailure =
-            error.code === 'ConditionalCheckFailedException'
-          if (isConditionalCheckFailure && this.__toBeDeleted) {
-            throw new InvalidModelDeletionError(
-              this.constructor.tableName, this._id)
-          } else if (isConditionalCheckFailure && this.__src.isCreate) {
-            throw new ModelAlreadyExistsError(
-              this.constructor.tableName, this._id)
-          } else if (isConditionalCheckFailure && this.__src.isUpdate) {
-            throw new InvalidModelUpdateError(
-              this.constructor.tableName, this._id)
-          } else {
-            throw error
-          }
-        }
-      }
-      if (tryCnt >= retries) {
-        throw new Error('Max retries reached')
-      }
-      const offset = Math.floor(Math.random() * millisBackOff * 0.2) -
-        millisBackOff * 0.1 // +-0.1 backoff as jitter to spread out conflicts
-      await sleep(millisBackOff + offset)
-      millisBackOff *= 2
-    }
-  }
-
-  /**
-   * @return a [ConditionExpression, ExpressionAttributeNames,
-   *   ExpressionAttributeValues] tuple to make sure the model
-   *   does not exist on server.
-   */
-  __nonexistentModelCondition () {
-    const condition = 'attribute_not_exists(#_id)'
-    const attrNames = {
-      '#_id': '_id'
-    }
-    let attrValues
-    return [
-      condition,
-      attrNames,
-      attrValues
-    ]
-  }
-
   /**
    * Must be the same as NonExistentModel.toString() because it is used as the
    * unique identifier of an item for Objects and Sets.
@@ -844,14 +481,11 @@ class Model {
    * @param {Boolean} params.initial Whether to return the initial state
    * @param {Boolean} params.dbKeys Whether to return _id instead of
    *   raw key fields.
+   * @param {Boolean} params.omitKey whether to omit the key
    */
-  getSnapshot ({ initial = false, dbKeys = false } = {}) {
-    if (initial === false && this.__toBeDeleted) {
-      return undefined
-    }
-
+  getSnapshot ({ initial = false, dbKeys = false, omitKey = false } = {}) {
     const ret = {}
-    if (dbKeys) {
+    if (dbKeys && !omitKey) {
       if (!initial || !this.isNew) {
         Object.assign(ret, this._id)
       } else {
@@ -864,7 +498,7 @@ class Model {
         continue
       }
       if (field.isKey) {
-        if (dbKeys) {
+        if (dbKeys || omitKey) {
           continue
         }
       }
@@ -878,60 +512,6 @@ class Model {
   }
 }
 
-/**
- * Used for tracking a non-existent item.
- */
-class NonExistentItem {
-  constructor (key) {
-    this.key = key
-  }
-
-  get __src () {
-    return {
-      isGet: true
-    }
-  }
-
-  get _id () {
-    return this.key.encodedKey
-  }
-
-  get __tableName () {
-    return this.key.Cls.tableName
-  }
-
-  __isMutated () {
-    return false
-  }
-
-  __conditionCheckParams () {
-    const condition = 'attribute_not_exists(#_id)'
-    const attrNames = {
-      '#_id': '_id'
-    }
-    return {
-      TableName: this.key.Cls.tableName,
-      Key: this.key.encodedKey,
-      ConditionExpression: condition,
-      ExpressionAttributeNames: attrNames
-    }
-  }
-
-  /**
-   * Must be the same as Model.toString() because it is used as the unique
-   * identifier of an item for Objects and Sets.
-   */
-  toString () {
-    return makeItemString(
-      this.key.Cls, this.key.encodedKey)
-  }
-
-  getSnapshot () {
-    return undefined
-  }
-}
-
 module.exports = {
-  Model,
-  NonExistentItem
+  Model
 }

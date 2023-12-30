@@ -1,7 +1,7 @@
 const S = require('@pocketgems/schema')
 const { BaseTest, runTests } = require('@pocketgems/unit-test')
 
-const { InvalidFieldError, NotImplementedError } = require('../src/errors')
+const { NotImplementedError } = require('../src/errors')
 const { __FieldInterface } = require('../src/fields')
 
 const db = require('./db-with-field-maker')

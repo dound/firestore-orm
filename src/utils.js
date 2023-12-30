@@ -76,21 +76,8 @@ function loadOptionDefaults (options, defaults) {
   return Object.assign(retOptions, options)
 }
 
-// sentinel values for different item creation methods
-const ITEM_SOURCE = {
-  CREATE_OR_PUT: { isCreateOrPut: true, canBeCached: false },
-  CREATE: { isCreate: true, canBeCached: true },
-  DELETE: { isDelete: true, canBeCached: false }, // Delete by key creates a local model
-  GET: { isGet: true, canBeCached: true },
-  UPDATE: { isUpdate: true, canBeCached: false }
-}
-
-const ITEM_SOURCES = new Set(Object.values(ITEM_SOURCE))
-
 module.exports = {
   checkUnexpectedOptions,
-  ITEM_SOURCE,
-  ITEM_SOURCES,
   loadOptionDefaults,
   makeItemString,
   SCHEMA_TYPE_TO_JS_TYPE_MAP,
