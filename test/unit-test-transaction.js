@@ -513,8 +513,7 @@ class TransactionWriteTest extends QuickTransactionTest {
   async testUpdateItemNonExisting () {
     const id = 'nonexistent' + uuidv4()
     let fut = db.Context.run(async tx => {
-      tx.updateWithoutRead(TransactionExample,
-        { id, field1: 2 })
+      return tx.updateWithoutRead(TransactionExample, { id, field1: 2 })
     })
     await expect(fut).rejects.toThrow(Error)
 
@@ -551,7 +550,7 @@ class TransactionWriteTest extends QuickTransactionTest {
   async testUpdateNoReturn () {
     // UpdateItem should not return the model for further modifications
     const fut = db.Context.run(async tx => {
-      const ret = tx.updateWithoutRead(TransactionExample,
+      const ret = await tx.updateWithoutRead(TransactionExample,
         { id: this.modelName, field1: 2 })
       expect(ret).toBe(undefined)
     })
@@ -570,7 +569,7 @@ class TransactionWriteTest extends QuickTransactionTest {
           original[fieldName] = val
         }
       })
-      tx.updateWithoutRead(data.Cls, { ...original, field1: newVal })
+      await tx.updateWithoutRead(data.Cls, { ...original, field1: newVal })
     })
     const updated = await txGet(data)
     expect(updated.field1).toBe(newVal)
@@ -579,7 +578,7 @@ class TransactionWriteTest extends QuickTransactionTest {
 
   async testUpdateWithNoChange () {
     const fut = db.Context.run(async tx => {
-      tx.updateWithoutRead(
+      await tx.updateWithoutRead(
         TransactionExample,
         { id: this.modelName })
     })
@@ -589,7 +588,7 @@ class TransactionWriteTest extends QuickTransactionTest {
   async testUpdateOtherFields () {
     await txGet(this.modelName, (m) => { m.field2 = 2 })
     await db.Context.run(async tx => {
-      tx.updateWithoutRead(
+      await tx.updateWithoutRead(
         TransactionExample,
         { id: this.modelName, field1: 1 })
     })
@@ -602,7 +601,7 @@ class TransactionWriteTest extends QuickTransactionTest {
   async testDeleteFieldByUpdate () {
     await txGet(this.modelName, (m) => { m.field2 = 2 })
     await db.Context.run(async tx => {
-      tx.updateWithoutRead(
+      await tx.updateWithoutRead(
         TransactionExample,
         { id: this.modelName, field2: undefined })
     })
@@ -778,7 +777,7 @@ class TransactionWriteTest extends QuickTransactionTest {
     await txGetRequired(data)
     const newVal = Math.floor(Math.random() * 99999999)
     await db.Context.run(async tx => {
-      tx.updateWithoutRead(
+      await tx.updateWithoutRead(
         TransactionExampleWithRequiredField,
         { id: modelName, field1: newVal })
     })
@@ -789,7 +788,7 @@ class TransactionWriteTest extends QuickTransactionTest {
 
   async testEmptyUpdate () {
     const fut = db.Context.run(async tx => {
-      tx.updateWithoutRead(
+      await tx.updateWithoutRead(
         TransactionExample,
         { id: '123' })
     })
@@ -834,7 +833,7 @@ class TransactionReadOnlyTest extends QuickTransactionTest {
   async testMakeReadOnlyDuringTx () {
     await expect(db.Context.run(async tx => {
       tx.makeReadOnly()
-      tx.updateWithoutRead(TransactionExample, { id: uuidv4(), field1: 1 })
+      await tx.updateWithoutRead(TransactionExample, { id: uuidv4(), field1: 1 })
     })).rejects.toThrow('read-only')
   }
 
