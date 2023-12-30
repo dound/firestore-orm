@@ -114,6 +114,10 @@ class Context {
     this.__eventEmitter = new AsyncEmitter()
     // watch for changes in models we access through this context
     this.__trackedModelsMap = {} // document path -> index of model in the list
+
+    // null elements = deleted
+    // undefined elements = fetched but did not exist
+    // other elements will be the model we're tracking
     this.__trackedModelsList = []
 
     // our reference to the db client changes to a transaction ref if needed
@@ -153,14 +157,19 @@ class Context {
    * Track models which have been accessed.
    * @param {Model} model A model to track.
    */
-  __watchForChangesToSave (model) {
-    const path = model.__key.docRef.path
+  __watchForChangesToSave (model, key) {
+    assert.ok(model || key, 'must provide model or key to __watch')
+    assert.ok(!(model && key), 'cannot provide both model and key to __watch')
+    const keyToUse = model ? model.__key : key
+    const path = keyToUse.docRef.path
     const trackedModelIdx = this.__trackedModelsMap[path]
     if (trackedModelIdx !== undefined) {
       const trackedModel = this.__trackedModelsList[trackedModelIdx]
       if (trackedModel) {
-        throw new ModelTrackedTwiceError(model, trackedModel)
+        throw new ModelTrackedTwiceError(keyToUse, trackedModel)
       } else {
+        // model is undefined if we tried to get() it (without createIfMissing)
+        // and it did not yet exist
         this.__trackedModelsList[trackedModelIdx] = model
       }
     } else {
@@ -255,6 +264,7 @@ class Context {
   async __gotItem (key, params, doc) {
     const isNew = !doc.exists
     if (!params.createIfMissing && isNew) {
+      this.__watchForChangesToSave(undefined, key)
       return undefined
     }
     const vals = isNew ? key.vals : (await doc.data())
@@ -305,19 +315,21 @@ class Context {
         }
       }
       const cachedModels = []
-      let keysOrDataToGet = []
-      if (this.options.cacheModels) {
-        for (const keyOrData of arr) {
-          const cachedModel = this.__trackedModelsMap[keyOrData.docRef.path]
-          if (cachedModel) {
-            cachedModels.push(cachedModel)
-          } else {
-            keysOrDataToGet.push(keyOrData)
+      const keysOrDataToGet = []
+      for (const keyOrData of arr) {
+        const key = keyOrData.key ?? keyOrData
+        const cachedModelIdx = this.__trackedModelsMap[key.docRef.path]
+        if (cachedModelIdx !== undefined) {
+          const cachedModel = this.__trackedModelsList[cachedModelIdx]
+          if (!this.options.cacheModels) {
+            throw new ModelTrackedTwiceError(key, cachedModel)
           }
+          cachedModels.push(cachedModel)
+        } else {
+          keysOrDataToGet.push(keyOrData)
         }
-      } else {
-        keysOrDataToGet = arr
       }
+
       // fetch the data in bulk if more than 1 item was requested
       const fetchedModels = []
       if (keysOrDataToGet.length > 0) {
@@ -326,7 +338,10 @@ class Context {
             ...await this.__getItems(keysOrDataToGet, params))
         } else {
           // just fetch the one item that was requested
-          fetchedModels.push(await this.__getItem(keysOrDataToGet[0], params))
+          const key = keysOrDataToGet[0]
+          const fut = this.__getItem(key, params)
+          const newModel = await fut
+          fetchedModels.push(newModel)
         }
       }
 

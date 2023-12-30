@@ -1078,24 +1078,27 @@ class TransactionCacheModelsTest extends BaseTest {
   async testPutModels () {
     // Models created with createOrOverwrite cannot be read and modified afterwards
     const id = uuidv4()
-    const fut = db.Context.run({ cacheModels: true }, async tx => {
+    const ret = await db.Context.run({ cacheModels: true }, async tx => {
       tx.createOrOverwrite(TransactionExample,
         { id, field1: 3 }
       )
-      await tx.get(TransactionExample.key({ id }))
+      // not a model tracked twice error because we set cacheModels to true
+      return await tx.get(TransactionExample.key({ id }))
     })
-    await expect(fut).rejects.toThrow('Model is not a valid cached model')
+    expect(ret.field1).toBe(3)
   }
 
   async testPersistedChanges () {
     const id = uuidv4()
-    const res = await db.Context.run({ cacheModels: true }, async tx => {
+    const { model, model2 } = await db.Context.run({ cacheModels: true }, async tx => {
       const model = await tx.get(TransactionExample.data({ id }),
         { createIfMissing: true })
       model.field1 = 1.1
-      return tx.get(TransactionExample.key({ id }))
+      const model2 = await tx.get(TransactionExample.key({ id }))
+      return { model, model2 }
     })
-    expect(res.field1).toBe(1.1)
+    expect(model).toBe(model2)
+    expect(model2.field1).toBe(1.1)
   }
 }
 

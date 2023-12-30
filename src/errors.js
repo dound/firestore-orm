@@ -120,11 +120,11 @@ class InvalidCachedModelError extends GenericModelError {
  * Thrown when model is tracked more than once inside a transaction.
  */
 class ModelTrackedTwiceError extends GenericModelError {
-  constructor (model, trackedModel) {
+  constructor (key, trackedModel) {
     const msg = 'Model tracked twice'
-    super(msg, model.constructor.tableName, model._id)
-    this.model = model
-    this.model2 = trackedModel
+    super(msg, key.Cls.tableName, key.encodedKey)
+    this.newKey = key
+    this.trackedModel = trackedModel
   }
 }
 
