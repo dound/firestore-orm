@@ -293,19 +293,14 @@ class DBReadmeTest extends BaseTest {
       tx.create(Guestbook, { id, names: [] })
     })
     async function addName (name) {
-      // success depends on one finishing before the other starts; if this is
-      // failing might need to redesign this test
       return db.Context.run({ retries: 5 }, async tx => {
         const gb = await tx.get(Guestbook, id)
         gb.names.push(name)
         return gb
       })
     }
-    let [gb1, gb2] = await Promise.all([addName('Alice'), addName('Bob')])
-    if (gb2.names.length === 1) {
-      // store first one to complete in gb1 to simplify code below
-      [gb1, gb2] = [gb2, gb1]
-    }
+    const gb1 = await addName('Alice')
+    const gb2 = await addName('Bob')
     expect(gb1.names.length + gb2.names.length).toBe(3)
     expect(gb1.names.length).toBe(1)
     expect(['Alice', 'Bob']).toContain(gb1.names[0])
