@@ -441,9 +441,7 @@ class Model {
   static __splitKeysAndDataWithPreprocessing (vals) {
     // if we only have one key component, then the `_id` **MAY** just be the
     // value rather than a map of key component names to values
-    assert(this.__setupDone,
-      `model ${this.name} one-time setup was not done (remember to export ` +
-      'the model')
+    this.__doOneTimeModelPrep()
     const pKeyOrder = this.__keyOrder
     if (pKeyOrder.length === 1) {
       const pFieldName = pKeyOrder[0]
