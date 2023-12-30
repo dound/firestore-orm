@@ -418,6 +418,7 @@ class Context {
    * @param {List<Key|Model>} args Keys and Models
    */
   async delete (...args) {
+    this.__throwIfWritesNotAllowed(args[0])
     for (const a of args) {
       let key = a
       if (a instanceof Model) {

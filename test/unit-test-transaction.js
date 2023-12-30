@@ -778,10 +778,11 @@ class TransactionReadOnlyTest extends QuickTransactionTest {
   }
 
   async testDelete () {
-    await expect(db.Context.run(async tx => {
+    const f = () => db.Context.run(async tx => {
       tx.makeReadOnly()
       tx.delete(TransactionExample.key({ id: uuidv4() }))
-    })).rejects.toThrow('in a read-only transaction')
+    })
+    expect(f).rejects.toThrow(/in a read-only transaction/)
   }
 
   async testDefaultValueBehavior () {
