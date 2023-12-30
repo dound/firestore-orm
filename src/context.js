@@ -324,7 +324,11 @@ class Context {
           if (!this.options.cacheModels) {
             throw new ModelTrackedTwiceError(key, cachedModel)
           }
-          cachedModels.push(cachedModel)
+          if (cachedModel === undefined && params.createIfMissing) {
+            keysOrDataToGet.push(keyOrData)
+          } else {
+            cachedModels.push({ key, model: cachedModel })
+          }
         } else {
           keysOrDataToGet.push(keyOrData)
         }
@@ -356,10 +360,12 @@ class Context {
             }
           }
 
-          for (const model of cachedModels) {
+          for (const { key, model } of cachedModels) {
             // istanbul ignore else
-            if (tableName === model.constructor.tableName &&
-              id === model._id) {
+            if (tableName === key.Cls.tableName && id === key.encodedKey) {
+              // undefined if previous get() found nothing
+              // null if previously delete()
+              // otherwise a model will be here
               return model
             }
           }

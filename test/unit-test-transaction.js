@@ -1035,11 +1035,14 @@ class TransactionCacheModelsTest extends BaseTest {
       // Repeatedly getting a missing item should also work
       const m2 = await tx.get(TransactionExample, id)
       const m3 = await tx.get(TransactionExample, id, { createIfMissing: true })
-      return [m1, m2, m3]
+      // this will get the created model from m3
+      const m4 = await tx.get(TransactionExample, id)
+      return [m1, m2, m3, m4]
     })
     expect(ret[0]).toBe(undefined)
     expect(ret[1]).toBe(undefined)
     expect(ret[2]._id).toBe(id)
+    expect(ret[3]._id).toBe(id)
   }
 
   async testGetMany () {
