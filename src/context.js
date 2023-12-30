@@ -171,9 +171,7 @@ class Context {
   async __saveChangedModels () {
     for (const model of this.__trackedModelsList) {
       if (model && (model.isNew || model.__isMutated(!this.options.readOnly))) {
-        if (this.options.readOnly) {
-          throw new WriteAttemptedInReadOnlyTxError(model)
-        }
+        this.__throwIfWritesNotAllowed(model)
         await model.__write(this)
       }
     }
@@ -374,7 +372,14 @@ class Context {
    */
   async updateWithoutRead (Cls, data) {
     const model = new Cls(false, data, true)
+    this.__throwIfWritesNotAllowed(model)
     return model.__write(this)
+  }
+
+  __throwIfWritesNotAllowed (model) {
+    if (this.options.readOnly) {
+      throw new WriteAttemptedInReadOnlyTxError(model)
+    }
   }
 
   /**
