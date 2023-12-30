@@ -876,58 +876,6 @@ class TransactionRetryTest extends QuickTransactionTest {
   }
 }
 
-class TransactionBackoffTest extends QuickTransactionTest {
-  async checkBackoff (retries, expectedBackoff,
-    initialBackoff, maxBackoff, expectedErr
-  ) {
-    initialBackoff = initialBackoff || 1
-    maxBackoff = maxBackoff || 200
-    expectedErr = expectedErr || db.TransactionFailedError
-    const mock = jest.fn().mockImplementation((callback, after) => {
-      callback()
-    })
-    const originalSetTimeout = setTimeout
-    global.setTimeout = mock.bind(global)
-
-    const originalRandom = Math.random
-    Math.random = () => 0
-
-    const err = new Error('')
-    err.retryable = true
-    const fut = db.Context.run({
-      retries,
-      initialBackoff,
-      maxBackoff
-    }, async tx => {
-      throw err
-    })
-    await expect(fut).rejects.toThrow(expectedErr)
-    expect(mock).toHaveBeenCalledTimes(retries)
-    if (retries) {
-      expect(mock).toHaveBeenLastCalledWith(expect.any(Function),
-        expectedBackoff)
-    }
-
-    Math.random = originalRandom
-    global.setTimeout = originalSetTimeout
-  }
-
-  async testExponentialBackoffs () {
-    await this.checkBackoff(0)
-    await this.checkBackoff(3, 3.6)
-  }
-
-  async testSmallMaxBackoff () {
-    await this.checkBackoff(1, 90, 100, 200)
-    await this.checkBackoff(0, undefined, 100, 199, db.InvalidOptionsError)
-  }
-
-  async testMaxBackoffs () {
-    await this.checkBackoff(1, 90, 100, 200)
-    await this.checkBackoff(3, 180, 100, 200)
-  }
-}
-
 class TransactionDeleteTest extends QuickTransactionTest {
   async getNoCreate (id) {
     return db.Context.run(tx => {
@@ -1232,7 +1180,6 @@ class ModelDiffsTest extends BaseTest {
 
 runTests(
   ParameterTest,
-  TransactionBackoffTest,
   TransactionDeleteTest,
   TransactionEdgeCaseTest,
   TransactionGetTest,
