@@ -12,7 +12,8 @@ const {
   TransactionFailedError,
   WriteAttemptedInReadOnlyTxError,
   ModelTrackedTwiceError,
-  ModelAlreadyExistsError
+  ModelAlreadyExistsError,
+  TransactionLockTimeoutError
 } = require('./errors')
 const { Key } = require('./key')
 const { Model } = require('./models')
@@ -610,8 +611,17 @@ class Context {
 }
 
 function parseFirestoreError (err) {
+  // probably a firestore error if it has these fields
   if (err.code && err.details) {
-    // probably a firestore error
+    // error 10 is the "Transaction lock timeout" error; retryable if separate
+    // transactions got in each other's way but could succeed if ordered
+    // differently (this error happens with pessimistic locking, the default
+    // Firestore setting)
+    if (err.code === 10 && err.details.indexOf('lock') !== -1) {
+      return new TransactionLockTimeoutError(err.message)
+    }
+
+    // error 6 is if you try to create a model that already exists
     const docInfo = parseFirestoreErrorPath(err)
     if (docInfo) {
       if (err.code === 6) {

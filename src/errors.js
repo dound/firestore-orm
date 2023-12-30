@@ -156,6 +156,14 @@ class NotImplementedError extends Error {
   }
 }
 
+class TransactionLockTimeoutError extends Error {
+  constructor (reason) {
+    super(reason)
+    this.name = this.constructor.name
+    this.retryable = true
+  }
+}
+
 module.exports = {
   GenericModelError,
   InvalidCachedModelError,
@@ -168,6 +176,7 @@ module.exports = {
   ModelTrackedTwiceError,
   NotImplementedError,
   TransactionFailedError,
+  TransactionLockTimeoutError,
   UpdateRequiredModelToExistError,
   WriteAttemptedInReadOnlyTxError
 }

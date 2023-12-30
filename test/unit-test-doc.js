@@ -59,7 +59,7 @@ class LiftStats extends db.Model {
 }
 
 async function liftRideTaken (resort, isNewSkier) {
-  await db.Context.run(async tx => {
+  await db.Context.run({ retries: 0 }, async tx => {
     const opts = { createIfMissing: true }
     const [skierStats, liftStats] = await Promise.all([
       !isNewSkier ? Promise.resolve() : tx.get(SkierStats, resort, opts),
@@ -339,7 +339,7 @@ class DBReadmeTest extends BaseTest {
       try {
         await liftRideTaken(resort, true)
       } catch (e) {
-        expect(e.message).toContain('Transaction lock timeout')
+        expect(e.message).toContain('out of retries')
       }
       const liftStats = await tx.get(LiftStats, resort)
       expect(skierStats).toEqual(undefined)
