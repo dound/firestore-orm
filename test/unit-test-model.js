@@ -403,12 +403,12 @@ class WriteTest extends BaseTest {
 
   async testRetry () {
     let count = 0
-    await expect(Context.run(tx => {
+    await expect(Context.run({ retries: 4 }, tx => {
       count += 1
       const err = new Error('testing max retries')
       err.retryable = true
       throw err
-    })).rejects.toThrow(/out of retries/)
+    })).rejects.toThrow(/Giving up after 5 attempts/)
     expect(count).toBe(5)
   }
 }

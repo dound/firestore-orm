@@ -293,7 +293,9 @@ class DBReadmeTest extends BaseTest {
       tx.create(Guestbook, { id, names: [] })
     })
     async function addName (name) {
-      return db.Context.run(async tx => {
+      // success depends on one finishing before the other starts; if this is
+      // failing might need to redesign this test
+      return db.Context.run({ retries: 5 }, async tx => {
         const gb = await tx.get(Guestbook, id)
         gb.names.push(name)
         return gb
@@ -313,7 +315,7 @@ class DBReadmeTest extends BaseTest {
 
   async testTxRetries () {
     const retryOptions = {
-      retries: 4, // 1 initial run + up to 4 retry attempts = max 5 total attempts
+      retries: 2, // 1 initial run + up to 2 retry attempts = max 3 total attempts
       initialBackoff: 1, // 1 millisecond (+/- a small random offset)
       maxBackoff: 200 // no more than 200 milliseconds
     }
@@ -325,8 +327,8 @@ class DBReadmeTest extends BaseTest {
       const error = new Error()
       error.retryable = true
       throw error
-    })).rejects.toThrow('Too much contention')
-    expect(count).toBe(5)
+    })).rejects.toThrow(/Giving up after 3 attempts/)
+    expect(count).toBe(3)
   }
 
   async testPessimisticLocking () {
@@ -339,7 +341,8 @@ class DBReadmeTest extends BaseTest {
       try {
         await liftRideTaken(resort, true)
       } catch (e) {
-        expect(e.message).toContain('out of retries')
+        expect(e.message).toContain('Giving up after 1 attempt')
+        expect(e.message).toContain('Transaction lock timeout')
       }
       const liftStats = await tx.get(LiftStats, resort)
       expect(skierStats).toEqual(undefined)
