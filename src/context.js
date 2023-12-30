@@ -253,6 +253,10 @@ class Context {
       return undefined
     }
     const vals = isNew ? key.vals : (await doc.data())
+    if (!isNew) {
+      // doc.data() only has data values; vals needs to include key values too
+      Object.assign(vals, key.keyComponents)
+    }
     const model = new key.Cls(isNew, vals)
     this.__watchForChangesToSave(model)
     return model

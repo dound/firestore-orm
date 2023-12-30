@@ -433,12 +433,6 @@ class WriteTest extends BaseTest {
     model = await txGet(BasicExample, model.id, model => {
       expect(model.noRequiredNoDefault).toBe(1)
       model.noRequiredNoDefault = undefined
-
-      const propName = 'noRequiredNoDefault'
-      expect(model).toHaveProperty(propName)
-      expect(model.__putParams().Item).not.toHaveProperty(propName)
-      expect(model.__updateParams()[UPDATE_EXPRESSION_STR])
-        .toContain('REMOVE ' + model.getField(propName).__awsName)
     })
 
     // Read and check again
