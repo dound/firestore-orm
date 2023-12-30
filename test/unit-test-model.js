@@ -119,6 +119,7 @@ async function txCreate (...args) {
 }
 
 class SimpleExample extends db.Model {}
+SimpleExample.__doOneTimeModelPrep()
 
 class SimpleExampleTest extends BaseTest {
   testInvalidSetup () {

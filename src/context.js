@@ -104,6 +104,7 @@ class Context {
    * @param {ContextOptions} [options] Options for this context
    */
   constructor (options) {
+    this.__eventEmitter = new AsyncEmitter()
     // watch for changes in models we access through this context
     this.__trackedModelsMap = {} // document path -> index of model in the list
     this.__trackedModelsList = []
