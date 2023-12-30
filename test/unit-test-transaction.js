@@ -5,7 +5,7 @@ const uuidv4 = require('uuid').v4
 const db = require('./db-with-field-maker')
 
 async function txGetGeneric (cls, values, func) {
-  return db.Context.run(async tx => {
+  return db.Context.run({ retries: 0 }, async tx => {
     let model
     const valuesType = values.constructor.name
     if (valuesType === 'Key' || valuesType === 'Data') {
