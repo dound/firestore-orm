@@ -480,7 +480,7 @@ class DBReadmeTest extends BaseTest {
     const data = { id, product: 'coffee', quantity: 1 }
     await db.Context.run(tx => tx.create(OrderWithNoPrice, data))
     await db.Context.run(async tx => {
-      const ret = tx.updateWithoutRead(
+      const ret = await tx.updateWithoutRead(
         OrderWithNoPrice, { id, quantity: 2 })
       expect(ret).toBe(undefined) // should not return anything
     })
@@ -505,7 +505,7 @@ class DBReadmeTest extends BaseTest {
       // Overwrite the row regardless of the content
       const ret = tx.createOrOverwrite(LastUsedFeature,
         { user: 'Bob', feature: 'refer a friend', epoch: 234 })
-      expect(ret).toBe(undefined) // should not return anything
+      expect(ret).not.toBe(undefined) // should return a modal, like create()
     })
 
     await db.Context.run(tx => {
