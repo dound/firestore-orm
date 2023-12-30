@@ -62,6 +62,14 @@ class TransactionFailedError extends Error {
   }
 }
 
+class TransactionLockTimeoutError extends TransactionFailedError {
+  constructor (reason, original) {
+    super(reason, original)
+    this.name = this.constructor.name
+    this.retryable = true
+  }
+}
+
 /**
  * Thrown when there's some error with a particular model.
  * @memberof Errors
@@ -153,14 +161,6 @@ class NotImplementedError extends Error {
   constructor (reason) {
     super(reason)
     this.name = this.constructor.name
-  }
-}
-
-class TransactionLockTimeoutError extends Error {
-  constructor (reason) {
-    super(reason)
-    this.name = this.constructor.name
-    this.retryable = true
   }
 }
 

@@ -1,10 +1,8 @@
-const assert = require('assert')
-
 const S = require('@pocketgems/schema')
 const { BaseTest, runTests } = require('@pocketgems/unit-test')
 const uuidv4 = require('uuid').v4
 
-const db = require('../src/default-db')
+const db = require('./db-with-field-maker')
 
 async function txGetGeneric (cls, values, func) {
   return db.Context.run(async tx => {
@@ -23,9 +21,6 @@ async function txGetGeneric (cls, values, func) {
 }
 async function txGet (keyValues, func) {
   return txGetGeneric(TransactionExample, keyValues, func)
-}
-async function txGetRequired (keyValues, func) {
-  return txGetGeneric(TransactionExampleWithRequiredField, keyValues, func)
 }
 
 class TransactionExample extends db.Model {
@@ -394,21 +389,26 @@ class TransactionWriteTest extends QuickTransactionTest {
   async testReadContention () {
     // When updating, if properties read in a transaction was updated outside,
     // contention!
-    const data = TransactionExample.data(uuidv4())
-    const fut = db.Context.run({ retries: 0 }, async (tx) => {
+    const id = uuidv4()
+    const data = TransactionExample.data(id)
+    const ret = await db.Context.run({ retries: 0 }, async (tx) => {
+      // this acquires a lock on the doc
       const txModel = await tx.get(data, { createIfMissing: true })
-      await txGet(data, model => {
-        model.field2 = 321
-      })
 
-      // Just reading a property that got changes outside of transaction
-      // results in contention
-      txModel.field2 // eslint-disable-line no-unused-expressions
+      // because of the lock, this will fail and field2 will remain undefined
+      try {
+        await txGet(data, model => {
+          model.field2 = 321
+        })
+      } catch (e) {
+        expect(e.message).toContain('Transaction lock timeout')
+      }
+
       txModel.field1 = 123
+      return true
     })
-    await expect(fut).rejects.toThrow(db.TransactionFailedError)
-    const result = await txGet(data)
-    expect(result.field2).toBe(321)
+    expect(ret).toBe(true)
+    db.verifyDoc(TransactionExample, id, { field1: 123, field2: undefined })
   }
 
   async testWriteContention () {

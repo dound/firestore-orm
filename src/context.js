@@ -498,13 +498,15 @@ class Context {
     let millisBackOff = this.options.initialBackoff
     const maxBackoff = this.options.maxBackoff
     for (let tryCnt = 0; tryCnt <= this.options.retries; tryCnt++) {
+      let err
       try {
+        err = undefined
         const ret = await this.__tryToRun(func)
         await this.__eventEmitter.emit(this.constructor.EVENTS.POST_COMMIT)
         return ret
       } catch (originalErr) {
         const firestoreError = parseFirestoreError(originalErr)
-        const err = firestoreError ?? originalErr
+        err = firestoreError ?? originalErr
 
         // make sure EVERY error is retryable
         const allErrors = err.allErrors || [err]
@@ -538,12 +540,11 @@ class Context {
         }
       }
       if (tryCnt >= this.options.retries) {
-        // note: this exact message is checked and during load testing this
-        // error will not be sent to Sentry; if this message changes, please
-        // update make-app.js too
-        const err = new TransactionFailedError('Too much contention? (out of retries)')
-        await this.__eventEmitter.emit(this.constructor.EVENTS.TX_FAILED, err)
-        throw err
+        const retryMsg = `Giving up after ${tryCnt + 1} attempt${tryCnt ? 's' : ''}`
+        const newErrorMsg = `${retryMsg}: ${err.message}`
+        const errToThrow = new TransactionFailedError(newErrorMsg, err)
+        await this.__eventEmitter.emit(this.constructor.EVENTS.TX_FAILED, errToThrow)
+        throw errToThrow
       }
       const offset = Math.floor(Math.random() * millisBackOff * 0.2) -
         millisBackOff * 0.1 // +-0.1 backoff as jitter to spread out conflicts
@@ -620,7 +621,7 @@ function parseFirestoreError (err) {
     // differently (this error happens with pessimistic locking, the default
     // Firestore setting)
     if (err.code === 10 && err.details.indexOf('lock') !== -1) {
-      return new TransactionLockTimeoutError(err.message)
+      return new TransactionLockTimeoutError(err.message, err)
     }
 
     // error 6 is if you try to create a model that already exists
