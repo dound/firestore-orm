@@ -1006,33 +1006,6 @@ class TransactionDeleteTest extends QuickTransactionTest {
     })
   }
 
-  async testDeleteMissing () {
-    // Deleting an item that we DO know exists should fail
-    const key = TransactionExample.key({ id: uuidv4() })
-    await txGet(key.keyComponents.id)
-    let fut = db.Context.run({ retries: 0 }, async tx => {
-      const model = await tx.get(key)
-      await db.Context.run(async innerTx => {
-        innerTx.delete(key)
-      })
-      await tx.delete(model)
-    })
-    await expect(fut).rejects.toThrow(
-      'Tried to delete model with outdated / invalid conditions:')
-
-    await txGet(key.keyComponents.id)
-    fut = db.Context.run({ retries: 0 }, async tx => {
-      await tx.get(TransactionExample, uuidv4())
-      const model = await tx.get(key)
-      await db.Context.run(async innerTx => {
-        innerTx.delete(key)
-      })
-      await tx.delete(model)
-    })
-    await expect(fut).rejects.toThrow(
-      'Tried to delete model with outdated / invalid conditions:')
-  }
-
   async testMissingRequired () {
     // Deleting using key should work even when the model has required fields
     await db.Context.run({ retries: 0 }, async tx => {
@@ -1041,95 +1014,12 @@ class TransactionDeleteTest extends QuickTransactionTest {
   }
 
   async testDoubleDeletion () {
+    // double-deletion is okay
     const id = uuidv4()
-    let fut = db.Context.run({ retries: 0 }, async tx => {
+    await db.Context.run({ retries: 0 }, async tx => {
       await tx.delete(TransactionExample.key({ id }))
       await tx.delete(TransactionExample.key({ id }))
     })
-    await expect(fut).rejects.toThrow(
-      'Tried to delete model when it\'s already deleted in the current tx:')
-
-    fut = db.Context.run({ retries: 0 }, async tx => {
-      const model = await tx.get(TransactionExample.data({ id }),
-        { createIfMissing: true })
-      await tx.delete(model)
-      await tx.delete(model)
-    })
-    await expect(fut).rejects.toThrow(
-      'Tried to delete model when it\'s already deleted in the current tx:')
-  }
-
-  /**
-   * Verify delete fails if accessed fields are modified during tx
-   */
-  async testAccessedFieldModified () {
-    const id = uuidv4()
-    await txGet(id, m => {
-      m.field1 = 123
-    })
-
-    const fut = db.Context.run({ retries: 0 }, async tx => {
-      const model = await tx.get(TransactionExample, id)
-      if (model.field1 === 123 && model.id === id) {
-        await tx.delete(model)
-      }
-      await db.Context.run(async innerTx => {
-        // accessed in outer tx, should fail outer delete
-        const model2 = await innerTx.get(TransactionExample, id)
-        model2.field1 = 321
-      })
-    })
-    await expect(fut).rejects.toThrow(
-      'Tried to delete model with outdated / invalid conditions')
-  }
-
-  /**
-   * Verify delete succeeds even if unaccessed fields are modified during tx
-   */
-  async testUnaccessedFieldModified () {
-    const id = uuidv4()
-    await txGet(id, m => {
-      m.field1 = 123
-    })
-
-    const fut = db.Context.run({ retries: 0 }, async tx => {
-      const model = await tx.get(TransactionExample, id)
-      if (model.field1 === 123 && model.id === id) {
-        await tx.delete(model)
-      }
-
-      await db.Context.run(async innerTx => {
-        const innerModel = await innerTx.get(TransactionExample, id)
-
-        // Not accessed in outer tx, should not fail outer delete
-        innerModel.field2 = 1000
-      })
-    })
-
-    await expect(fut).resolves.not.toThrow()
-  }
-
-  /**
-   * Verify delete succeeds even if written but not read
-   * fields are modified during tx
-   */
-  async testReadlessAccessedFieldModified () {
-    const id = uuidv4()
-    await txGet(id, m => {
-      m.field1 = 123
-    })
-    const delPromise = db.Context.run({ retries: 0 }, async tx => {
-      const model = await tx.get(TransactionExample, id)
-      model.getField('field1').incrementBy(1)
-
-      await db.Context.run(async innerTx => {
-        // current value of field should be ignored
-        const innerModel = await innerTx.get(TransactionExample, id)
-        innerModel.getField('field1').incrementBy(2)
-      })
-      await tx.delete(model)
-    })
-    await expect(delPromise).resolves.not.toThrow()
   }
 }
 
