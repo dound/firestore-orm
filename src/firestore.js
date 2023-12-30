@@ -5,14 +5,10 @@ const {
   Context
 } = require('./context')
 const {
-  InvalidCachedModelError,
   InvalidFieldError,
-  InvalidModelDeletionError,
-  InvalidModelUpdateError,
   InvalidOptionsError,
   InvalidParameterError,
   ModelAlreadyExistsError,
-  ModelDeletedTwiceError,
   ModelTrackedTwiceError,
   TransactionFailedError,
   WriteAttemptedInReadOnlyTxError
@@ -51,12 +47,8 @@ function setup (firestoreDB) {
 
     // Errors
     InvalidFieldError,
-    InvalidModelDeletionError,
-    InvalidModelUpdateError,
-    InvalidCachedModelError,
     InvalidOptionsError,
     InvalidParameterError,
-    ModelDeletedTwiceError,
     ModelTrackedTwiceError,
     ModelAlreadyExistsError,
     TransactionFailedError,

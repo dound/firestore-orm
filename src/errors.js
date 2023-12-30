@@ -94,29 +94,6 @@ class ModelAlreadyExistsError extends GenericModelError {
 }
 
 /**
- * Thrown when a model is to be updated, but condition check failed.
- * @memberof Errors
- */
-class UpdateRequiredModelToExistError extends GenericModelError {
-  constructor (table, _id) {
-    super('Tried to update model but it did not exist as required',
-      table, _id)
-  }
-}
-
-/**
- * Thrown when an attempt to get a model that is deleted or created in a
- * transaction where cachedModels option is on.
- * @memberof Errors
- */
-class InvalidCachedModelError extends GenericModelError {
-  constructor (model) {
-    super('Model is not a valid cached model',
-      model.constructor.tableName, model._id)
-  }
-}
-
-/**
  * Thrown when model is tracked more than once inside a transaction.
  */
 class ModelTrackedTwiceError extends GenericModelError {
@@ -125,17 +102,6 @@ class ModelTrackedTwiceError extends GenericModelError {
     super(msg, key.Cls.tableName, key.encodedKey)
     this.newKey = key
     this.trackedModel = trackedModel
-  }
-}
-
-/**
- * Thrown when a model is being deleted more than once.
- * @memberof Errors
- */
-class DeletedTwiceError extends GenericModelError {
-  constructor (tableName, _id) {
-    super('Tried to delete model when it\'s already deleted in the current tx',
-      tableName, _id)
   }
 }
 
@@ -150,13 +116,6 @@ class WriteAttemptedInReadOnlyTxError extends Error {
   }
 }
 
-class InvalidFilterError extends Error {
-  constructor (reason) {
-    super(reason)
-    this.name = this.constructor.name
-  }
-}
-
 class NotImplementedError extends Error {
   constructor (reason) {
     super(reason)
@@ -166,17 +125,13 @@ class NotImplementedError extends Error {
 
 module.exports = {
   GenericModelError,
-  InvalidCachedModelError,
   InvalidFieldError,
-  InvalidFilterError,
   InvalidOptionsError,
   InvalidParameterError,
   ModelAlreadyExistsError,
-  DeletedTwiceError,
   ModelTrackedTwiceError,
   NotImplementedError,
   TransactionFailedError,
   TransactionLockTimeoutError,
-  UpdateRequiredModelToExistError,
   WriteAttemptedInReadOnlyTxError
 }
