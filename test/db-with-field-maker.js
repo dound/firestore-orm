@@ -4,6 +4,18 @@ const S = require('@pocketgems/schema')
 
 const db = require('../src/default-db')
 
+db.verifyDoc = async (ModelCls, id, data) => {
+  const docRef = db.firestoreDB.collection(ModelCls.tableName).doc(id)
+  const doc = await docRef.get()
+  if (data) {
+    expect(doc.exists).toBe(true)
+    const data = await doc.data()
+    expect(data).toEqual(data)
+  } else {
+    expect(doc.exists).toBe(false)
+  }
+}
+
 // create helper functions to construct fields for testing purposes
 db.__private.fields.forEach(Cls => {
   db.__private[Cls.name] = opts => fieldFromFieldOptions(Cls, opts)

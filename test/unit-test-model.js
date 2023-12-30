@@ -417,10 +417,7 @@ class WriteTest extends BaseTest {
     expect(model.noRequiredNoDefault).toBe(undefined)
     model.noRequiredNoDefault = undefined
 
-    const doc = await db.firestoreDB.collection('BasicExample').doc(id).get()
-    expect(doc.exists).toBe(true)
-    const data = await doc.data()
-    expect(data).toEqual({})
+    db.verifyDoc(BasicExample, id, {})
   }
 
   async testResettingProp () {
