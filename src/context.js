@@ -11,7 +11,8 @@ const {
   DeletedTwiceError,
   TransactionFailedError,
   WriteAttemptedInReadOnlyTxError,
-  ModelTrackedTwiceError
+  ModelTrackedTwiceError,
+  ModelAlreadyExistsError
 } = require('./errors')
 const { Key } = require('./key')
 const { Model } = require('./models')
@@ -70,7 +71,11 @@ class Context {
   /**
    * Options for interacting with Firestore.
    * @typedef {Object} ContextOptions
-   * @property {Boolean} [readOnly=false] whether writes are allowed
+   * @property {Boolean} [readOnly=false] whether writes are allowed (we could
+   *   allow writes outside of tx for performance too, but omitting it for
+   *   safety for now)
+   * @property {Boolean} [consistentReads=true] whether multiple reads are
+   *   gauranteed to be from a consistent snapshot
    * @property {Number} [retries=4] The number of times to retry after the
    *   initial attempt fails.
    * @property {Number} [initialBackoff=500] In milliseconds, delay
@@ -490,7 +495,10 @@ class Context {
         const ret = await this.__tryToRun(func)
         await this.__eventEmitter.emit(this.constructor.EVENTS.POST_COMMIT)
         return ret
-      } catch (err) {
+      } catch (originalErr) {
+        const firestoreError = parseFirestoreError(originalErr)
+        const err = firestoreError ?? originalErr
+
         // make sure EVERY error is retryable
         const allErrors = err.allErrors || [err]
         const errorMessages = []
@@ -591,6 +599,38 @@ class Context {
       before: allBefore,
       after: allAfter,
       diff: allDiff
+    }
+  }
+}
+
+function parseFirestoreError (err) {
+  if (err.code && err.details) {
+    // probably a firestore error
+    const docInfo = parseFirestoreErrorPath(err)
+    if (docInfo) {
+      if (err.code === 6) {
+        return new ModelAlreadyExistsError(docInfo.table, docInfo.id)
+      }
+    }
+  }
+}
+
+function parseFirestoreErrorPath (err) {
+  const startIdx = err.message.indexOf('Element {')
+  if (startIdx >= 0) {
+    const endIdx = err.message.indexOf('}', startIdx)
+    if (endIdx > startIdx) {
+      try {
+        // hacky way to turn the error info into JSON
+        const eltStr = err.message.substring(startIdx + 8, endIdx + 1)
+          .replace('type', '"type"')
+          .replace('name', ', "name"')
+        const elt = JSON.parse(eltStr)
+        if (elt.type && elt.name) {
+          return { table: elt.type, id: elt.name }
+        }
+        return elt
+      } catch { /* no-op */ }
     }
   }
 }
