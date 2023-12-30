@@ -371,7 +371,7 @@ class WriteTest extends BaseTest {
     expect(model.noRequiredNoDefault).toBe(undefined)
     model.noRequiredNoDefault = undefined
 
-    db.verifyDoc(BasicExample, id, {})
+    await db.verifyDoc(BasicExample, id, {})
   }
 
   async testResettingProp () {
