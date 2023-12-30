@@ -467,7 +467,7 @@ class WriteTest extends BaseTest {
       const err = new Error('testing max retries')
       err.retryable = true
       throw err
-    })).rejects.toThrow('Max retries reached')
+    })).rejects.toThrow(/out of retries/)
     expect(count).toBe(5)
   }
 }
