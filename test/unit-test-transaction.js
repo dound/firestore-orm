@@ -263,9 +263,27 @@ class TransactionGetTest extends QuickTransactionTest {
     })
   }
 
-  async testGetMissingThenCreate () {
+  async testGetMissingThenCreateNoCache () {
     let id = uuidv4()
-    const ret = await db.Context.run(async tx => {
+    const fut1 = db.Context.run({ cacheModels: false }, async tx => {
+      const m1 = await tx.get(TransactionExample, id)
+      const m2 = await tx.get(TransactionExample, id, { createIfMissing: true })
+      return [m1, m2]
+    })
+    await expect(fut1).rejects.toThrow('Model tracked twice')
+
+    // okay to create after get which found nothing
+    id = uuidv4()
+    const fut2 = db.Context.run(async tx => {
+      await tx.get(TransactionExample, id)
+      tx.create(TransactionExample, { id })
+    })
+    await expect(fut2).resolves.not.toThrow()
+  }
+
+  async testGetMissingThenCreateCached () {
+    let id = uuidv4()
+    const ret = await db.Context.run({ cacheModels: true }, async tx => {
       const m1 = await tx.get(TransactionExample, id)
       const m2 = await tx.get(TransactionExample, id, { createIfMissing: true })
       return [m1, m2]
@@ -749,7 +767,7 @@ class TransactionWriteTest extends QuickTransactionTest {
     const id = uuidv4()
     const future = db.Context.run(async tx => {
       await tx.delete(TransactionExample.key({ id }))
-      await tx.get(TransactionExample, { id })
+      await tx.get(TransactionExample, { id: id + 'x' }) // a different model
     })
     await expect(future)
       .rejects

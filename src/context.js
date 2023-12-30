@@ -624,7 +624,7 @@ class Context {
     const allDiff = []
     for (const model of this.__trackedModelsList) {
       // istanbul ignore if
-      if (!filter(model) || model === null) {
+      if (!filter(model) || !model) {
         continue
       }
       const before = model.getSnapshot({ initial: true, dbKeys: true })
