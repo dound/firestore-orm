@@ -411,26 +411,25 @@ class TransactionWriteTest extends QuickTransactionTest {
   async testWriteContention () {
     // When updating, if properties change in a transaction was also updated
     // outside, contention!
-    let result
     const data = TransactionExample.data(this.modelName)
+    const mOrig = await txGet(data)
+    const field2Orig = mOrig.field2
     const fut = db.Context.run({ retries: 0 }, async (tx) => {
+      // this locks the model
       const txModel = await tx.get(data, { createIfMissing: true })
-      if (txModel.field1 && txModel.field2) {
-        // no-op: just accessing the fields so we're conditioned on their
-        // original values
-      }
 
+      // so this fails
       await txGet(data, model => {
-        model.field2 += 1
-        result = model.field2
+        model.field2 = 99
       })
 
+      // so we never reach this
       txModel.field2 = 111
       txModel.field1 = 123
     })
     await expect(fut).rejects.toThrow(db.TransactionFailedError)
     const m = await txGet(data)
-    expect(m.field2).toBe(result)
+    expect(m.field2).toBe(field2Orig)
   }
 
   async testWriteSnapshot () {
