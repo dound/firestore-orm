@@ -514,7 +514,7 @@ class TransactionWriteTest extends QuickTransactionTest {
     const id = 'nonexistent' + uuidv4()
     let fut = db.Context.run(async tx => {
       tx.updateWithoutRead(TransactionExample,
-        { id }, { field1: 2 })
+        { id, field1: 2 })
     })
     await expect(fut).rejects.toThrow(Error)
 
@@ -552,32 +552,10 @@ class TransactionWriteTest extends QuickTransactionTest {
     // UpdateItem should not return the model for further modifications
     const fut = db.Context.run(async tx => {
       const ret = tx.updateWithoutRead(TransactionExample,
-        { id: this.modelName, field1: 1 }, { field1: 2 })
+        { id: this.modelName, field1: 2 })
       expect(ret).toBe(undefined)
     })
     await expect(fut).rejects.toThrow()
-  }
-
-  async testUpdateConflict () {
-    // Update fails when original data doesn't match db
-    const fut = db.Context.run(async tx => {
-      tx.updateWithoutRead(TransactionExample,
-        { id: this.modelName, field1: Math.floor(Math.random() * 9999999) },
-        { field1: 2 }
-      )
-    })
-    await expect(fut).rejects.toThrow()
-  }
-
-  async testUpdateInitialUndefined () {
-    const fut = db.Context.run(async tx => {
-      tx.updateWithoutRead(
-        TransactionExample,
-        { id: uuidv4(), field1: undefined },
-        { field1: 123 }
-      )
-    })
-    await expect(fut).rejects.toThrow(db.InvalidParameterError)
   }
 
   async testUpdateItem () {
@@ -592,21 +570,20 @@ class TransactionWriteTest extends QuickTransactionTest {
           original[fieldName] = val
         }
       })
-      tx.updateWithoutRead(data.Cls, original, { field1: newVal })
+      tx.updateWithoutRead(data.Cls, { ...original, field1: newVal })
     })
     const updated = await txGet(data)
     expect(updated.field1).toBe(newVal)
     expect(updated._c_field1_id).toBe([newVal, this.modelName].join('\0'))
   }
 
-  async testUpdateWithID () {
+  async testUpdateWithNoChange () {
     const fut = db.Context.run(async tx => {
       tx.updateWithoutRead(
         TransactionExample,
-        { id: this.modelName },
         { id: this.modelName })
     })
-    await expect(fut).rejects.toThrow()
+    await expect(fut).rejects.toThrow('update did not provide any data to change')
   }
 
   async testUpdateOtherFields () {
@@ -614,8 +591,7 @@ class TransactionWriteTest extends QuickTransactionTest {
     await db.Context.run(async tx => {
       tx.updateWithoutRead(
         TransactionExample,
-        { id: this.modelName, field2: 2 },
-        { field1: 1 })
+        { id: this.modelName, field1: 1 })
     })
     const model = await txGet(this.modelName)
     expect(model.field1).toBe(1)
@@ -628,8 +604,7 @@ class TransactionWriteTest extends QuickTransactionTest {
     await db.Context.run(async tx => {
       tx.updateWithoutRead(
         TransactionExample,
-        { id: this.modelName, field2: 2 },
-        { field2: undefined })
+        { id: this.modelName, field2: undefined })
     })
     const model = await txGet(this.modelName)
     expect(model.field2).toBe(undefined)
@@ -800,13 +775,12 @@ class TransactionWriteTest extends QuickTransactionTest {
     await expect(fut).rejects.toThrow() // Missing required field, should fail
 
     const data = { id: modelName, required: 1, field1: 1 }
-    const model = await txGetRequired(data)
+    await txGetRequired(data)
     const newVal = Math.floor(Math.random() * 99999999)
     await db.Context.run(async tx => {
       tx.updateWithoutRead(
         TransactionExampleWithRequiredField,
-        { id: modelName, field1: model.field1 },
-        { field1: newVal })
+        { id: modelName, field1: newVal })
     })
     const updated = await txGetRequired({ id: modelName })
     expect(updated.field1).toBe(newVal)
@@ -817,10 +791,9 @@ class TransactionWriteTest extends QuickTransactionTest {
     const fut = db.Context.run(async tx => {
       tx.updateWithoutRead(
         TransactionExample,
-        { id: '123', field1: 1 },
-        { })
+        { id: '123' })
     })
-    await expect(fut).rejects.toThrow()
+    await expect(fut).rejects.toThrow('update did not provide any data to change')
   }
 
   /**
@@ -861,7 +834,7 @@ class TransactionReadOnlyTest extends QuickTransactionTest {
   async testMakeReadOnlyDuringTx () {
     await expect(db.Context.run(async tx => {
       tx.makeReadOnly()
-      tx.updateWithoutRead(TransactionExample, { id: uuidv4() }, { field1: 1 })
+      tx.updateWithoutRead(TransactionExample, { id: uuidv4(), field1: 1 })
     })).rejects.toThrow('read-only')
   }
 

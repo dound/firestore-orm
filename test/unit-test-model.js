@@ -354,7 +354,8 @@ class WriteTest extends BaseTest {
 
   async testNoIDInUpdateCondition () {
     const m1 = await txGet(BasicExample, this.modelName)
-    expect(db.checkWriteCall(m1)).toEqual({ update: {} })
+    m1.noRequiredNoDefault = 1
+    expect(db.checkWriteCall(m1)).toEqual({ update: { noRequiredNoDefault: 1 } })
   }
 
   async testWriteSetToUndefinedProp () {

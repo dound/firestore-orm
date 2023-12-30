@@ -6,7 +6,8 @@ const stableStringify = require('fast-json-stable-stringify')
 const { Data } = require('./data')
 const {
   InvalidFieldError,
-  InvalidParameterError
+  InvalidParameterError,
+  GenericModelError
 } = require('./errors')
 const { __Field, SCHEMA_TYPE_TO_FIELD_CLASS_MAP } = require('./fields')
 const { Key } = require('./key')
@@ -317,6 +318,11 @@ class Model {
         ctx.__dbCtx.create(docRef, data)
       }
     } else {
+      if (!Object.keys(data).length) {
+        throw new GenericModelError(
+          'update did not provide any data to change',
+          this.constructor.tableName, this.__key.encodedKey)
+      }
       ctx.__dbCtx.update(docRef, data)
     }
   }
