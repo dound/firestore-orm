@@ -247,7 +247,9 @@ class __Field extends __BaseField {
    */
   __valueForFirestoreWrite () {
     if (this.__value === undefined) {
-      return FieldValue.delete()
+      if (this.__initialValue !== undefined) {
+        return FieldValue.delete()
+      }
     }
     return deepcopy(this.__value)
   }
