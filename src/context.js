@@ -583,6 +583,8 @@ class Context {
 
   /**
    * Return before and after snapshots of all relevant models.
+   *
+   * Does not include deleted models.
    */
   getModelDiffs (filter = () => true) {
     const allBefore = []
@@ -590,7 +592,7 @@ class Context {
     const allDiff = []
     for (const model of this.__trackedModelsList) {
       // istanbul ignore if
-      if (!filter(model)) {
+      if (!filter(model) || model === null) {
         continue
       }
       const before = model.getSnapshot({ initial: true, dbKeys: true })

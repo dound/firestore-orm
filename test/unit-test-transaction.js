@@ -1278,18 +1278,8 @@ class ModelDiffsTest extends BaseTest {
       await tx.get(TransactionExample, id)
       return tx.getModelDiffs()
     })
-    expect(result.before).toStrictEqual([{
-      TransactionExample: {
-        _id: id,
-        data: undefined
-      }
-    }])
-    expect(result.after).toStrictEqual([{
-      TransactionExample: {
-        _id: id,
-        data: undefined
-      }
-    }])
+    expect(result.before).toStrictEqual([])
+    expect(result.after).toStrictEqual([])
   }
 
   async testGet () {
@@ -1354,23 +1344,9 @@ class ModelDiffsTest extends BaseTest {
     const expectation = this.defaultExpectation
     expectation.TransactionExample._id = id
     expect(result).toStrictEqual({
-      before: [expectation],
-      after: [{
-        TransactionExample: {
-          _id: id,
-          data: undefined
-        }
-      }],
-      diff: [{
-        TransactionExample: {
-          _id: id,
-          data: {
-            added: {},
-            deleted: {},
-            updated: undefined
-          }
-        }
-      }]
+      before: [],
+      after: [],
+      diff: []
     })
 
     // Create model
@@ -1386,23 +1362,9 @@ class ModelDiffsTest extends BaseTest {
     expectation.TransactionExample.data._id = id
     expectation.TransactionExample.data.field1 = 1
     expect(result2).toStrictEqual({
-      before: [expectation],
-      after: [{
-        TransactionExample: {
-          _id: id,
-          data: undefined
-        }
-      }],
-      diff: [{
-        TransactionExample: {
-          _id: id,
-          data: {
-            added: {},
-            deleted: {},
-            updated: undefined
-          }
-        }
-      }]
+      before: [],
+      after: [],
+      diff: []
     })
   }
 
