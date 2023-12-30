@@ -871,6 +871,13 @@ class TransactionRetryTest extends QuickTransactionTest {
     expect(db.Context.__isRetryable(err)).toBe(false)
 
     err.code = 'TransactionCanceledException'
+    expect(db.Context.__isRetryable(err)).toBe(false)
+
+    err.code = 6
+    err.details = 'xx'
+    expect(db.Context.__isRetryable(err)).toBe(false)
+
+    err.retryable = true
     expect(db.Context.__isRetryable(err)).toBe(true)
   }
 }
