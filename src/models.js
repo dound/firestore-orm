@@ -493,7 +493,8 @@ class Model {
     const ret = {}
     if (dbKeys && !omitKey) {
       if (!initial || !this.isNew) {
-        Object.assign(ret, this._id)
+        assert.ok(typeof this._id === 'string')
+        ret._id = this._id
       } else {
         ret._id = undefined
       }
