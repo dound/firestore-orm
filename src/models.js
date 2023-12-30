@@ -95,7 +95,7 @@ class Model {
       return field
     }
     this.__attr_getters[name] = getCachedField
-    if (this.isNew) {
+    if (this.isNew || (this.__isPartial && valSpecified)) {
       getCachedField() // create the field now to trigger validation
     }
     Object.defineProperty(this, name, {

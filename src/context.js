@@ -374,7 +374,7 @@ class Context {
    */
   async updateWithoutRead (Cls, data) {
     const model = new Cls(false, data, true)
-    return model.__write(this.__dbCtx)
+    return model.__write(this)
   }
 
   /**

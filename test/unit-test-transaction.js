@@ -23,6 +23,10 @@ async function txGet (keyValues, func) {
   return txGetGeneric(TransactionExample, keyValues, func)
 }
 
+async function txGetRequired (keyValues, func) {
+  return txGetGeneric(TransactionExampleWithRequiredField, keyValues, func)
+}
+
 class TransactionExample extends db.Model {
   static KEY = { id: S.str.min(1) }
   static FIELDS = {
