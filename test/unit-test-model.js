@@ -460,19 +460,14 @@ class WriteTest extends BaseTest {
   }
 
   async testRetry () {
-    const model = await txGet(BasicExample, this.modelName)
-    const msg = uuidv4()
-    const originalFunc = model.documentClient.update
-    const mock = jest.fn().mockImplementation((ignore, params) => {
-      const err = new Error(msg)
+    let count = 0
+    await expect(Context.run(tx => {
+      count += 1
+      const err = new Error('testing max retries')
       err.retryable = true
       throw err
-    })
-    model.documentClient.update = mock
-    await expect(model.__write()).rejects.toThrow('Max retries reached')
-    expect(mock).toHaveBeenCalledTimes(4)
-
-    model.documentClient.update = originalFunc
+    })).rejects.toThrow('Max retries reached')
+    expect(count).toBe(5)
   }
 }
 
