@@ -1196,6 +1196,57 @@ class ModelDiffsTest extends BaseTest {
   }
 }
 
+class WithoutTransactionTest extends BaseTest {
+  async testMutateOutsideTx () {
+    const id = uuidv4()
+    await db.Context.run(async tx => {
+      await tx.get(TransactionExample, { id, field1: 1 }, { createIfMissing: true })
+    })
+    await db.verifyDoc(TransactionExample, id, { field1: 1 })
+
+    // test delete
+    await db.Context.run({ readOnly: true, consistentReads: false }, async ctx => {
+      // hackily allow writes outside tx (not recommended, but possible)
+      ctx.options.readOnly = false
+      await ctx.delete(TransactionExample.key(id))
+      await ctx.__saveChangedModels()
+    })
+    await db.verifyDoc(TransactionExample, id)
+
+    // test create outside tx
+    await db.Context.run({ readOnly: true, consistentReads: false }, async ctx => {
+      ctx.options.readOnly = false
+      ctx.create(TransactionExample, { id, field1: 2 })
+      await ctx.__saveChangedModels()
+    })
+    console.log('check create')
+    await db.verifyDoc(TransactionExample, id, { field1: 2 })
+    console.log('p2')
+
+    // test update outside tx
+    await db.Context.run({ readOnly: true, consistentReads: false }, async ctx => {
+      ctx.options.readOnly = false
+      await ctx.updateWithoutRead(TransactionExample, { id, field1: 3 })
+      await ctx.__saveChangedModels()
+    })
+    await db.verifyDoc(TransactionExample, id, { field1: 3 })
+
+    // test create or overwrite tx
+    await db.Context.run({ readOnly: true, consistentReads: false }, async ctx => {
+      ctx.options.readOnly = false
+      ctx.createOrOverwrite(TransactionExample, { id, field1: 4 })
+      await ctx.__saveChangedModels()
+    })
+    await db.verifyDoc(TransactionExample, id, { field1: 4 })
+    await db.Context.run({ readOnly: true, consistentReads: false }, async ctx => {
+      ctx.options.readOnly = false
+      ctx.createOrOverwrite(TransactionExample, { id: id + 'x', field2: 5 })
+      await ctx.__saveChangedModels()
+    })
+    await db.verifyDoc(TransactionExample, id + 'x', { field2: 5 })
+  }
+}
+
 runTests(
   ParameterTest,
   TransactionDeleteTest,
@@ -1205,5 +1256,6 @@ runTests(
   TransactionRetryTest,
   TransactionWriteTest,
   TransactionCacheModelsTest,
-  ModelDiffsTest
+  ModelDiffsTest,
+  WithoutTransactionTest
 )
