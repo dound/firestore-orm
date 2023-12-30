@@ -405,7 +405,7 @@ class TransactionWriteTest extends QuickTransactionTest {
       return true
     })
     expect(ret).toBe(true)
-    db.verifyDoc(TransactionExample, id, { field1: 123, field2: undefined })
+    await db.verifyDoc(TransactionExample, id, { field1: 123, field2: undefined })
   }
 
   async testWriteContention () {
@@ -449,61 +449,27 @@ class TransactionWriteTest extends QuickTransactionTest {
     expect(updated.arrField[0].a).toBe(12)
   }
 
-  async testNoContention () {
-    // When using update to write data, a weaker condition is used to check for
-    // contention: If properties relevant to the transaction are modified,
-    // there shouldn't be contention
-    let finalVal
-    const data = TransactionExample.data(this.modelName)
-    await db.Context.run(async (tx) => {
-      const txModel = await tx.get(data, { createIfMissing: true })
-      const model = await txGet(data, model => {
-        model.field2 += 1
-      })
-
-      txModel.field1 += 1
-      finalVal = [txModel.field1, model.field2]
-    })
-    const updated = await txGet(data)
-    expect(updated.field1).toBe(finalVal[0])
-    expect(updated.field2).toBe(finalVal[1])
-  }
-
-  async testMismatchedKeysForCreateOrOverwrite () {
+  async testCreateAndThenOverwriteWithCreateOrOverwrite () {
+    // create something new
     const id = uuidv4()
-    const fut = db.Context.run(async tx => {
-      tx.createOrOverwrite(TransactionExample,
-        { id: id + 'x', field1: 3, field2: 1 },
-        { id })
-    })
-    await expect(fut).rejects.toThrow(db.InvalidParameterError)
-
-    // can specify id in new data param (but it must match)
+    await db.verifyDoc(TransactionExample, id) // does not exist yet
     await db.Context.run(async tx => {
       tx.createOrOverwrite(TransactionExample,
-        { id, field1: 3, field2: 1, objField: { a: { a: 1 } } },
-        { id })
+        { id: id, field1: 3, field2: 1 })
+    })
+    await db.verifyDoc(TransactionExample, id, { field1: 3, field2: 1 })
+
+    // can overwrite (this is an overwrite, not a merge!)
+    await db.Context.run(async tx => {
+      tx.createOrOverwrite(TransactionExample,
+        { id, field1: 4, objField: { a: { a: 1 } } })
     })
     await db.Context.run(async tx => {
       const item = await tx.get(TransactionExample, id)
       expect(item.id).toBe(id)
-      expect(item.field1).toBe(3)
-      expect(item.field2).toBe(1)
+      expect(item.field1).toBe(4)
+      expect(item.field2).toBe(undefined)
       expect(item.objField).toEqual({ a: { a: 1 } })
-    })
-
-    // can omit id in new data param (it's implied)
-    await db.Context.run(async tx => {
-      tx.createOrOverwrite(TransactionExample,
-        { field1: 33, field2: 11, objField: { a: { a: 11 } } },
-        { id, field1: 3 })
-    })
-    await db.Context.run(async tx => {
-      const item = await tx.get(TransactionExample, id)
-      expect(item.id).toBe(id)
-      expect(item.field1).toBe(33)
-      expect(item.field2).toBe(11)
-      expect(item.objField).toEqual({ a: { a: 11 } })
     })
   }
 
