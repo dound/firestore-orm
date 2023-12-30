@@ -294,13 +294,12 @@ class Model {
   }
 
   __write (ctx) {
-    // ModelAlreadyExistsError
     const docRef = this.__key.docRef
     const data = {}
     for (const field of Object.values(this.__cached_attrs)) {
       if (!field.isKey) {
         if (this.isNew || field.hasChangesToCommit(true)) {
-          data[field.name] = field.__value
+          data[field.name] = field.__valueForFirestoreWrite()
         }
       }
     }

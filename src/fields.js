@@ -40,7 +40,7 @@ class __FieldInterface {
     throw new NotImplementedError()
   }
 
-  __updateExpression (exprKey) {
+  __valueForFirestoreWrite () {
     throw new NotImplementedError()
   }
 
@@ -244,27 +244,14 @@ class __Field extends __BaseField {
   }
 
   /**
-   * Generates a [SET, AttributeValues, REMOVE] tuple.
-   *
-   * @access package
-   * @param {String} exprKey A key to use to link values in ConditionExpression
-   *   and ExpressionAttributeValues
-   * @returns {Array} [ConditionExpression, ExpressionAttributeValues,
-   *   ShouldRemove]
+   * Returns the update value to give to Firestore. Assumes the value has been
+   * mutated!
    */
-  __updateExpression (exprKey) {
-    if (!this.mutated) {
-      return []
-    }
+  __valueForFirestoreWrite () {
     if (this.__value === undefined) {
-      return [undefined, {}, true]
+      return FieldValue.delete()
     }
-
-    return [
-      `${this.__awsName}=${exprKey}`,
-      { [exprKey]: deepcopy(this.__value) },
-      false
-    ]
+    return deepcopy(this.__value)
   }
 
   /**
@@ -446,12 +433,12 @@ class NumberField extends __Field {
       !this.__readInitialValue)
   }
 
-  __updateExpression (exprKey) {
+  __valueForFirestoreWrite () {
     // if we're locking, there's no point in doing an increment
     if (this.canUpdateWithIncrement) {
       return FieldValue.increment(this.__diff)
     }
-    return super.__updateExpression(exprKey)
+    return super.__valueForFirestoreWrite()
   }
 }
 
