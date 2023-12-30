@@ -373,10 +373,8 @@ class Context {
    * @param {Object} data Updated fields for the item
    */
   async updateWithoutRead (Cls, data) {
-    const model = new Cls(true, data, true)
-    await model.finalize()
-    const docRef = model.__key.docRef
-    await this.__dbCtx.update(docRef, model.toJSON())
+    const model = new Cls(false, data, true)
+    return model.__write(this.__dbCtx)
   }
 
   /**
