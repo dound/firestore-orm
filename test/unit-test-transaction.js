@@ -1,3 +1,5 @@
+const assert = require('assert')
+
 const S = require('@pocketgems/schema')
 const { BaseTest, runTests } = require('@pocketgems/unit-test')
 const uuidv4 = require('uuid').v4
@@ -486,15 +488,13 @@ class TransactionWriteTest extends QuickTransactionTest {
 
     fut = db.Context.run(async tx => {
       tx.createOrOverwrite(TransactionExampleWithRequiredField,
-        { field1: 3, field2: 1 },
-        { id })
+        { id, field1: 3, field2: 1 })
     })
     await expect(fut).rejects.toThrow(/missing required value/)
 
     await db.Context.run(async tx => {
       tx.createOrOverwrite(TransactionExample,
-        { field1: 3, field2: 1, arrField: undefined, objField: undefined },
-        { id })
+        { id, field1: 3, field2: 1, arrField: undefined, objField: undefined })
     })
     let model = await txGet(id)
     expect(model.field1).toBe(3)
@@ -502,12 +502,12 @@ class TransactionWriteTest extends QuickTransactionTest {
     await db.Context.run(async tx => {
       tx.createOrOverwrite(TransactionExample,
         {
+          id,
           field1: 3,
           field2: 567,
           arrField: undefined,
           objField: undefined
-        },
-        { id }
+        }
       )
     })
     model = await txGet(id)
@@ -516,12 +516,11 @@ class TransactionWriteTest extends QuickTransactionTest {
 
   async testUpdateNoReturn () {
     // UpdateItem should not return the model for further modifications
-    const fut = db.Context.run(async tx => {
+    await db.Context.run(async tx => {
       const ret = await tx.updateWithoutRead(TransactionExample,
         { id: this.modelName, field1: 2 })
       expect(ret).toBe(undefined)
     })
-    await expect(fut).rejects.toThrow()
   }
 
   async testUpdateItem () {
@@ -579,12 +578,12 @@ class TransactionWriteTest extends QuickTransactionTest {
       tx.createOrOverwrite(
         TransactionExampleWithRequiredField,
         {
+          id: this.modelName,
           field1: 1,
           field2: 2,
           arrField: undefined,
           objField: undefined
-        },
-        { id: this.modelName }
+        }
       )
     })
     await expect(fut).rejects.toThrow(/missing required value/)
@@ -593,13 +592,13 @@ class TransactionWriteTest extends QuickTransactionTest {
       tx.createOrOverwrite(
         TransactionExampleWithRequiredField,
         {
+          id: this.modelName,
           field1: 1,
           field2: 2,
           arrField: undefined,
           objField: undefined,
           required: undefined
-        },
-        { id: this.modelName }
+        }
       )
     })
     await expect(fut).rejects.toThrow(/missing required value/)
@@ -646,11 +645,12 @@ class TransactionWriteTest extends QuickTransactionTest {
       tx.createOrOverwrite(
         TransactionExample,
         {
+          id: name,
+          field1: 123123,
           field2: undefined,
           arrField: undefined,
           objField: undefined
-        },
-        { id: name, field1: 123123 }
+        }
       )
     })
     model = await txGet(name)
@@ -663,44 +663,16 @@ class TransactionWriteTest extends QuickTransactionTest {
       tx.createOrOverwrite(
         TransactionExample,
         {
+          id: name,
           field1: 9988234,
           field2: undefined,
           arrField: undefined,
           objField: undefined
-        },
-        { id: name }
+        }
       )
     })
-    let model = await txGet(name)
+    const model = await txGet(name)
     expect(model.field1).toBe(9988234)
-
-    const fut = db.Context.run(async tx => {
-      tx.createOrOverwrite(
-        TransactionExample,
-        {
-          field2: 111,
-          arrField: undefined,
-          objField: undefined
-        },
-        { id: name, field1: 123123 } // initial value doesn't match
-      )
-    })
-    await expect(fut).rejects.toThrow(db.TransactionFailedError)
-
-    await db.Context.run(async tx => {
-      tx.createOrOverwrite(
-        TransactionExample,
-        {
-          field2: 111,
-          arrField: undefined,
-          objField: undefined
-        },
-        { id: name, field1: 9988234 } // initial value ok
-      )
-    })
-    model = await txGet(name)
-    expect(model.field1).toBe(9988234)
-    expect(model.field2).toBe(111)
   }
 
   async testTransactionalCreateOrOverwrite () {
@@ -760,26 +732,30 @@ class TransactionWriteTest extends QuickTransactionTest {
   // Verify model cannot be tracked more than once inside a tx.
   async testDuplicateTracking () {
     // verify create then get on non existing item fails
-    let future = db.Context.run(async tx => {
+    const future = db.Context.run(async tx => {
       tx.createOrOverwrite(TransactionExample, { id: 'abc', field1: 1 })
       await tx.get(TransactionExample, { id: 'abc' })
     })
     await expect(future)
       .rejects
-      .toThrow(
-        'Model tracked for Get already tracked from CreateOrOverwrite: unittestTransactionExample _id=abc'
-      )
+      .toThrow(/Model tracked twice/)
 
-    // verify delete then get fails
-    future = db.Context.run(async tx => {
+    // verify delete after get is okay
+    await db.Context.run(async tx => {
+      await tx.get(TransactionExample, { id: 'abc' })
+      tx.delete(TransactionExample.key({ id: 'abc' }))
+    })
+    await db.verifyDoc(TransactionExample, 'abc')
+  }
+
+  async testGetAfterWrite () {
+    const future = db.Context.run(async tx => {
       tx.delete(TransactionExample.key({ id: 'abc' }))
       await tx.get(TransactionExample, { id: 'abc' })
     })
     await expect(future)
       .rejects
-      .toThrow(
-        'Model tracked for Get already tracked from Delete: unittestTransactionExample _id=abc'
-      )
+      .toThrow(/Firestore transactions require all reads to be executed before all writes/)
   }
 }
 
