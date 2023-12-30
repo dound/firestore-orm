@@ -175,7 +175,7 @@ class TransactionGetTest extends QuickTransactionTest {
       const fut = tx.get(TransactionExample, 'a',
         { createIfMissing: true })
       await expect(fut).rejects
-        .toThrow('Model tracked for Get already tracked from Get: unittestTransactionExample _id=a')
+        .toThrow('Model tracked twice')
     })
   }
 
@@ -207,26 +207,20 @@ class TransactionGetTest extends QuickTransactionTest {
   }
 
   async testTransactGet () {
-    const newName = uuidv4()
+    const ids = [uuidv4(), uuidv4()]
+    // create them
+    await txGet(ids[0])
+    await txGet(ids[1])
     const [m1, m2] = await db.Context.run(async (ctx) => {
       const ret = await ctx.get([
-        TransactionExample.key(this.modelName),
-        TransactionExample.key(newName)
+        TransactionExample.key(ids[0]),
+        TransactionExample.key(ids[1])
       ])
       expect(ctx.__trackedModelsList.length).toBe(2)
       return ret
     })
-    expect(m1.id).toBe(this.modelName)
-    expect(m2).toBe(undefined)
-
-    const [m3, m4] = await db.Context.run(async (tx) => {
-      return tx.get([
-        TransactionExample.data(this.modelName),
-        TransactionExample.data(newName)
-      ], { createIfMissing: true })
-    })
-    expect(m3.id).toBe(this.modelName)
-    expect(m4.id).toBe(newName)
+    expect(m1.id).toBe(ids[0])
+    expect(m2.id).toBe(ids[1])
   }
 
   async testMultipleGet () {
