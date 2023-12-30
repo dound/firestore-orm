@@ -732,26 +732,30 @@ class TransactionWriteTest extends QuickTransactionTest {
   // Verify model cannot be tracked more than once inside a tx.
   async testDuplicateTracking () {
     // verify create then get on non existing item fails
+    const id = uuidv4()
+    await txGet(id) // make the item first
     const future = db.Context.run(async tx => {
-      tx.createOrOverwrite(TransactionExample, { id: 'abc', field1: 1 })
-      await tx.get(TransactionExample, { id: 'abc' })
+      tx.createOrOverwrite(TransactionExample, { id, field1: 1 })
+      await tx.get(TransactionExample, { id })
     })
     await expect(future)
       .rejects
       .toThrow(/Model tracked twice/)
 
     // verify delete after get is okay
+    const id2 = uuidv4()
     await db.Context.run(async tx => {
-      await tx.get(TransactionExample, { id: 'abc' })
-      tx.delete(TransactionExample.key({ id: 'abc' }))
+      await tx.get(TransactionExample, id2)
+      tx.delete(TransactionExample.key({ id: id2 }))
     })
-    await db.verifyDoc(TransactionExample, 'abc')
+    await db.verifyDoc(TransactionExample, id2)
   }
 
   async testGetAfterWrite () {
+    const id = uuidv4()
     const future = db.Context.run(async tx => {
-      tx.delete(TransactionExample.key({ id: 'abc' }))
-      await tx.get(TransactionExample, { id: 'abc' })
+      tx.delete(TransactionExample.key({ id }))
+      await tx.get(TransactionExample, { id })
     })
     await expect(future)
       .rejects
