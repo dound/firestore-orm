@@ -612,7 +612,7 @@ class AbstractFieldTest extends BaseTest {
     expect(() => obj.accessed).toThrow(NotImplementedError)
     expect(() => obj.get()).toThrow(NotImplementedError)
     expect(() => obj.set('')).toThrow(NotImplementedError)
-    expect(() => obj.__updateExpression('')).toThrow(NotImplementedError)
+    expect(() => obj.__valueForFirestoreWrite('')).toThrow(NotImplementedError)
     expect(() => obj.validate()).toThrow(NotImplementedError)
     expect(() => obj.hasChangesToCommit()).toThrow(NotImplementedError)
   }
