@@ -80,6 +80,9 @@ class __BaseField extends __FieldInterface {
     // value within a read-only transaction, the change shouldn't be commited.
     // Otherwise, an error will occur when attempting to update in a
     // read-only transaction.
+    if (this.__isForUpdate) {
+      return true
+    }
     const initDefault = !expectWrites && this.__useDefault && !this.__written
     return this.mutated && !initDefault
   }
@@ -239,6 +242,9 @@ class __Field extends __BaseField {
         }
       }
     }
+    if (valSpecified && isForUpdate) {
+      this.__isForUpdate = true
+    }
   }
 
   /**
@@ -247,7 +253,7 @@ class __Field extends __BaseField {
    */
   __valueForFirestoreWrite () {
     if (this.__value === undefined) {
-      if (this.__initialValue !== undefined) {
+      if (this.__initialValue !== undefined || this.__isForUpdate) {
         return FieldValue.delete()
       }
     }
