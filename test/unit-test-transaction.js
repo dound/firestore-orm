@@ -1060,22 +1060,27 @@ class TransactionCacheModelsTest extends BaseTest {
     expect(ret[0]._id).toBe(ret[1]._id)
   }
 
-  async testDeletedModels () {
+  async testGetDeleteGet () {
     const id = uuidv4()
-    let fut = db.Context.run({ cacheModels: true }, async tx => {
+    const fut = db.Context.run({ cacheModels: true }, async tx => {
       const opts = { createIfMissing: true }
       const model = await tx.get(TransactionExample.data({ id }), opts)
       await tx.delete(model)
-      await tx.get(TransactionExample.key({ id }))
+      return await tx.get(TransactionExample.key({ id }))
     })
-    await expect(fut).rejects.toThrow('Model is not a valid cached model')
+    const ret = await fut
+    await expect(ret).toBe(null)
+  }
 
-    fut = db.Context.run({ cacheModels: true }, async tx => {
+  async testGetAfterDelete () {
+    const id = uuidv4()
+    const fut = db.Context.run({ cacheModels: true }, async tx => {
       const opts = { createIfMissing: true }
       await tx.delete(TransactionExample.key({ id }))
-      await tx.get(TransactionExample, id, opts)
+      return await tx.get(TransactionExample, id, opts)
     })
-    await expect(fut).rejects.toThrow('Model is not a valid cached model')
+    const ret = await fut
+    expect(ret).toBe(null)
   }
 
   async testPutModels () {
