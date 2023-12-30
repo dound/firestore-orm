@@ -1,5 +1,6 @@
 const assert = require('assert')
 
+const { Transaction } = require('@google-cloud/firestore')
 const { detailedDiff } = require('deep-object-diff')
 
 const AsyncEmitter = require('./async-emitter')
@@ -373,12 +374,12 @@ class Context {
   async updateWithoutRead (Cls, data) {
     const model = new Cls(false, data, true)
     this.__throwIfWritesNotAllowed(model)
-    return model.__write(this)
+    await model.__write(this)
   }
 
-  __throwIfWritesNotAllowed (model) {
+  __throwIfWritesNotAllowed (data) {
     if (this.options.readOnly) {
-      throw new WriteAttemptedInReadOnlyTxError(model)
+      throw new WriteAttemptedInReadOnlyTxError(data)
     }
   }
 
@@ -437,7 +438,12 @@ class Context {
           this.__trackedModelsMap[path] = this.__trackedModelsList.length
           this.__trackedModelsList.push(null)
         }
-        await this.__dbCtx.delete(key.docRef)
+        const ret = this.__dbCtx.delete(key.docRef)
+        // depending on whether __dbCtx is a Firestore or Transaction object,
+        // we need to wait the result
+        if (!(ret instanceof Transaction)) {
+          await ret
+        }
       } else {
         throw new InvalidParameterError('args', 'Must be models and keys')
       }

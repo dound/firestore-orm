@@ -746,7 +746,7 @@ class TransactionWriteTest extends QuickTransactionTest {
     const id2 = uuidv4()
     await db.Context.run(async tx => {
       await tx.get(TransactionExample, id2)
-      tx.delete(TransactionExample.key({ id: id2 }))
+      await tx.delete(TransactionExample.key({ id: id2 }))
     })
     await db.verifyDoc(TransactionExample, id2)
   }
@@ -754,7 +754,7 @@ class TransactionWriteTest extends QuickTransactionTest {
   async testGetAfterWrite () {
     const id = uuidv4()
     const future = db.Context.run(async tx => {
-      tx.delete(TransactionExample.key({ id }))
+      await tx.delete(TransactionExample.key({ id }))
       await tx.get(TransactionExample, { id })
     })
     await expect(future)
@@ -778,11 +778,10 @@ class TransactionReadOnlyTest extends QuickTransactionTest {
   }
 
   async testDelete () {
-    const f = () => db.Context.run(async tx => {
+    await expect(db.Context.run(async tx => {
       tx.makeReadOnly()
-      tx.delete(TransactionExample.key({ id: uuidv4() }))
-    })
-    expect(f).rejects.toThrow(/in a read-only transaction/)
+      await tx.delete(TransactionExample.key({ id: uuidv4() }))
+    })).rejects.toThrow(/in a read-only transaction/)
   }
 
   async testDefaultValueBehavior () {
@@ -950,11 +949,11 @@ class TransactionDeleteTest extends QuickTransactionTest {
         { createIfMissing: true })
       const m3 = TransactionExample.key({ id: uuidv4() })
 
-      tx.delete(m1, m2, m3) // fine
+      await tx.delete(m1, m2, m3) // fine
 
-      expect(() => {
-        tx.delete(123)
-      }).toThrow('Invalid parameter args. Must be models and keys.')
+      await expect(async () => {
+        await tx.delete(123)
+      }).rejects.toThrow('Invalid parameter args. Must be models and keys.')
 
       return 1122331
     })
@@ -966,7 +965,7 @@ class TransactionDeleteTest extends QuickTransactionTest {
     const key = TransactionExample.key({ id: m.id })
     const result = await db.Context.run(async tx => {
       const model = await tx.get(key)
-      tx.delete(model)
+      await tx.delete(model)
       return model
     })
     expect(result.id).toBe(m.id)
@@ -980,7 +979,7 @@ class TransactionDeleteTest extends QuickTransactionTest {
       // multiple items goes through TransactWrite
       await tx.get(TransactionExample, uuidv4(), { createIfMissing: true })
       const model = await tx.get(key)
-      tx.delete(model)
+      await tx.delete(model)
       return model
     })
     expect(result.id).toBe(m.id)
@@ -991,19 +990,19 @@ class TransactionDeleteTest extends QuickTransactionTest {
     // Deleting an item that we don't know if exists should silently pass
     const data = TransactionExample.data({ id: uuidv4() })
     await db.Context.run(async tx => {
-      tx.delete(data)
+      await tx.delete(data)
     })
 
     await db.Context.run(async tx => {
       // creat then delete in the same transaction don't cause conflicts
       const model = await tx.get(data, { createIfMissing: true })
-      tx.delete(model)
+      await tx.delete(model)
     })
 
     await db.Context.run(async tx => {
       // creat then delete in the same transaction don't cause conflicts
       const model = tx.create(data.Cls, data.keyComponents)
-      tx.delete(model)
+      await tx.delete(model)
     })
   }
 
@@ -1016,7 +1015,7 @@ class TransactionDeleteTest extends QuickTransactionTest {
       await db.Context.run(async innerTx => {
         innerTx.delete(key)
       })
-      tx.delete(model)
+      await tx.delete(model)
     })
     await expect(fut).rejects.toThrow(
       'Tried to delete model with outdated / invalid conditions:')
@@ -1028,7 +1027,7 @@ class TransactionDeleteTest extends QuickTransactionTest {
       await db.Context.run(async innerTx => {
         innerTx.delete(key)
       })
-      tx.delete(model)
+      await tx.delete(model)
     })
     await expect(fut).rejects.toThrow(
       'Tried to delete model with outdated / invalid conditions:')
@@ -1037,15 +1036,15 @@ class TransactionDeleteTest extends QuickTransactionTest {
   async testMissingRequired () {
     // Deleting using key should work even when the model has required fields
     await db.Context.run({ retries: 0 }, async tx => {
-      tx.delete(TransactionExampleWithRequiredField.key({ id: uuidv4() }))
+      await tx.delete(TransactionExampleWithRequiredField.key({ id: uuidv4() }))
     })
   }
 
   async testDoubleDeletion () {
     const id = uuidv4()
     let fut = db.Context.run({ retries: 0 }, async tx => {
-      tx.delete(TransactionExample.key({ id }))
-      tx.delete(TransactionExample.key({ id }))
+      await tx.delete(TransactionExample.key({ id }))
+      await tx.delete(TransactionExample.key({ id }))
     })
     await expect(fut).rejects.toThrow(
       'Tried to delete model when it\'s already deleted in the current tx:')
@@ -1053,8 +1052,8 @@ class TransactionDeleteTest extends QuickTransactionTest {
     fut = db.Context.run({ retries: 0 }, async tx => {
       const model = await tx.get(TransactionExample.data({ id }),
         { createIfMissing: true })
-      tx.delete(model)
-      tx.delete(model)
+      await tx.delete(model)
+      await tx.delete(model)
     })
     await expect(fut).rejects.toThrow(
       'Tried to delete model when it\'s already deleted in the current tx:')
@@ -1072,7 +1071,7 @@ class TransactionDeleteTest extends QuickTransactionTest {
     const fut = db.Context.run({ retries: 0 }, async tx => {
       const model = await tx.get(TransactionExample, id)
       if (model.field1 === 123 && model.id === id) {
-        tx.delete(model)
+        await tx.delete(model)
       }
       await db.Context.run(async innerTx => {
         // accessed in outer tx, should fail outer delete
@@ -1096,7 +1095,7 @@ class TransactionDeleteTest extends QuickTransactionTest {
     const fut = db.Context.run({ retries: 0 }, async tx => {
       const model = await tx.get(TransactionExample, id)
       if (model.field1 === 123 && model.id === id) {
-        tx.delete(model)
+        await tx.delete(model)
       }
 
       await db.Context.run(async innerTx => {
@@ -1128,7 +1127,7 @@ class TransactionDeleteTest extends QuickTransactionTest {
         const innerModel = await innerTx.get(TransactionExample, id)
         innerModel.getField('field1').incrementBy(2)
       })
-      tx.delete(model)
+      await tx.delete(model)
     })
     await expect(delPromise).resolves.not.toThrow()
   }
@@ -1179,14 +1178,14 @@ class TransactionCacheModelsTest extends BaseTest {
     let fut = db.Context.run({ cacheModels: true }, async tx => {
       const opts = { createIfMissing: true }
       const model = await tx.get(TransactionExample.data({ id }), opts)
-      tx.delete(model)
+      await tx.delete(model)
       await tx.get(TransactionExample.key({ id }))
     })
     await expect(fut).rejects.toThrow('Model is not a valid cached model')
 
     fut = db.Context.run({ cacheModels: true }, async tx => {
       const opts = { createIfMissing: true }
-      tx.delete(TransactionExample.key({ id }))
+      await tx.delete(TransactionExample.key({ id }))
       await tx.get(TransactionExample, id, opts)
     })
     await expect(fut).rejects.toThrow('Model is not a valid cached model')
