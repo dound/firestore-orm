@@ -62,8 +62,7 @@ class TransactionExampleWithRequiredField extends TransactionExample {
 class QuickTransactionTest extends BaseTest {
   mockTransactionDefaultOptions (options) {
     Object.defineProperty(db.Context.prototype, 'defaultOptions', {
-      value: options,
-      writable: false
+      value: options
     })
   }
 
@@ -71,7 +70,14 @@ class QuickTransactionTest extends BaseTest {
     await super.beforeAll()
     this.oldTransactionOptions = db.Context.prototype.defaultOptions
     const newOptions = Object.assign({}, this.oldTransactionOptions)
-    Object.assign(newOptions, { retries: 1, initialBackoff: 20 })
+    Object.assign(newOptions, {
+      readOnly: false,
+      consistentReads: true,
+      initialBackoff: 20,
+      maxBackoff: 200,
+      retries: 1,
+      cacheModels: false
+    })
     this.mockTransactionDefaultOptions(newOptions)
   }
 
