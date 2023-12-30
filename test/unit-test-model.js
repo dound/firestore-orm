@@ -411,15 +411,16 @@ class WriteTest extends BaseTest {
   async testWriteSetToUndefinedProp () {
     // If a field is set to undefined when it's already undefined,
     // the prop should not be transmitted.
-    const model = await txGet(BasicExample, uuidv4())
+    const id = uuidv4()
+    const model = await txGet(BasicExample, id)
     expect(model.isNew).toBe(true)
     expect(model.noRequiredNoDefault).toBe(undefined)
     model.noRequiredNoDefault = undefined
 
-    const propName = 'noRequiredNoDefault'
-    expect(model).toHaveProperty(propName)
-    expect(model.__updateParams()).not.toHaveProperty(UPDATE_EXPRESSION_STR)
-    expect(model.__putParams().Item).not.toHaveProperty(propName)
+    const doc = await db.firestoreDB.collection('BasicExample').doc(id).get()
+    expect(doc.exists).toBe(true)
+    const data = await doc.data()
+    expect(data).toEqual({})
   }
 
   async testResettingProp () {

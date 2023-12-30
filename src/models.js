@@ -293,10 +293,12 @@ class Model {
     const docRef = this.__key.docRef
     const data = {}
     for (const field of Object.values(this.__cached_attrs)) {
-      if (this.isNew || (!field.isKey && field.hasChangesToCommit(true))) {
-        const val = field.__valueForFirestoreWrite()
-        if (val !== undefined) {
-          data[field.name] = val
+      if (!field.isKey) {
+        if (this.isNew || field.hasChangesToCommit(true)) {
+          const val = field.__valueForFirestoreWrite()
+          if (val !== undefined) {
+            data[field.name] = val
+          }
         }
       }
     }

@@ -47,6 +47,7 @@ function setup (firestoreDB) {
     Model,
     UniqueKeyList,
     Context,
+    firestoreDB,
 
     // Errors
     InvalidFieldError,
