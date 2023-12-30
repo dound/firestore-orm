@@ -472,10 +472,10 @@ class TransactionWriteTest extends QuickTransactionTest {
     expect(updated.field2).toBe(finalVal[1])
   }
 
-  async testMismatchedKeysForCreateOrPut () {
+  async testMismatchedKeysForCreateOrOverwrite () {
     const id = uuidv4()
     const fut = db.Context.run(async tx => {
-      tx.createOrPut(TransactionExample,
+      tx.createOrOverwrite(TransactionExample,
         { id: id + 'x', field1: 3, field2: 1 },
         { id })
     })
@@ -483,7 +483,7 @@ class TransactionWriteTest extends QuickTransactionTest {
 
     // can specify id in new data param (but it must match)
     await db.Context.run(async tx => {
-      tx.createOrPut(TransactionExample,
+      tx.createOrOverwrite(TransactionExample,
         { id, field1: 3, field2: 1, objField: { a: { a: 1 } } },
         { id })
     })
@@ -497,7 +497,7 @@ class TransactionWriteTest extends QuickTransactionTest {
 
     // can omit id in new data param (it's implied)
     await db.Context.run(async tx => {
-      tx.createOrPut(TransactionExample,
+      tx.createOrOverwrite(TransactionExample,
         { field1: 33, field2: 11, objField: { a: { a: 11 } } },
         { id, field1: 3 })
     })
@@ -513,20 +513,20 @@ class TransactionWriteTest extends QuickTransactionTest {
   async testUpdateItemNonExisting () {
     const id = 'nonexistent' + uuidv4()
     let fut = db.Context.run(async tx => {
-      tx.update(TransactionExample,
+      tx.updateWithoutRead(TransactionExample,
         { id }, { field1: 2 })
     })
     await expect(fut).rejects.toThrow(Error)
 
     fut = db.Context.run(async tx => {
-      tx.createOrPut(TransactionExampleWithRequiredField,
+      tx.createOrOverwrite(TransactionExampleWithRequiredField,
         { field1: 3, field2: 1 },
         { id })
     })
     await expect(fut).rejects.toThrow(/missing required value/)
 
     await db.Context.run(async tx => {
-      tx.createOrPut(TransactionExample,
+      tx.createOrOverwrite(TransactionExample,
         { field1: 3, field2: 1, arrField: undefined, objField: undefined },
         { id })
     })
@@ -534,7 +534,7 @@ class TransactionWriteTest extends QuickTransactionTest {
     expect(model.field1).toBe(3)
 
     await db.Context.run(async tx => {
-      tx.createOrPut(TransactionExample,
+      tx.createOrOverwrite(TransactionExample,
         {
           field1: 3,
           field2: 567,
@@ -551,7 +551,7 @@ class TransactionWriteTest extends QuickTransactionTest {
   async testUpdateNoReturn () {
     // UpdateItem should not return the model for further modifications
     const fut = db.Context.run(async tx => {
-      const ret = tx.update(TransactionExample,
+      const ret = tx.updateWithoutRead(TransactionExample,
         { id: this.modelName, field1: 1 }, { field1: 2 })
       expect(ret).toBe(undefined)
     })
@@ -561,7 +561,7 @@ class TransactionWriteTest extends QuickTransactionTest {
   async testUpdateConflict () {
     // Update fails when original data doesn't match db
     const fut = db.Context.run(async tx => {
-      tx.update(TransactionExample,
+      tx.updateWithoutRead(TransactionExample,
         { id: this.modelName, field1: Math.floor(Math.random() * 9999999) },
         { field1: 2 }
       )
@@ -571,7 +571,7 @@ class TransactionWriteTest extends QuickTransactionTest {
 
   async testUpdateInitialUndefined () {
     const fut = db.Context.run(async tx => {
-      tx.update(
+      tx.updateWithoutRead(
         TransactionExample,
         { id: uuidv4(), field1: undefined },
         { field1: 123 }
@@ -592,7 +592,7 @@ class TransactionWriteTest extends QuickTransactionTest {
           original[fieldName] = val
         }
       })
-      tx.update(data.Cls, original, { field1: newVal })
+      tx.updateWithoutRead(data.Cls, original, { field1: newVal })
     })
     const updated = await txGet(data)
     expect(updated.field1).toBe(newVal)
@@ -601,7 +601,7 @@ class TransactionWriteTest extends QuickTransactionTest {
 
   async testUpdateWithID () {
     const fut = db.Context.run(async tx => {
-      tx.update(
+      tx.updateWithoutRead(
         TransactionExample,
         { id: this.modelName },
         { id: this.modelName })
@@ -612,7 +612,7 @@ class TransactionWriteTest extends QuickTransactionTest {
   async testUpdateOtherFields () {
     await txGet(this.modelName, (m) => { m.field2 = 2 })
     await db.Context.run(async tx => {
-      tx.update(
+      tx.updateWithoutRead(
         TransactionExample,
         { id: this.modelName, field2: 2 },
         { field1: 1 })
@@ -626,7 +626,7 @@ class TransactionWriteTest extends QuickTransactionTest {
   async testDeleteFieldByUpdate () {
     await txGet(this.modelName, (m) => { m.field2 = 2 })
     await db.Context.run(async tx => {
-      tx.update(
+      tx.updateWithoutRead(
         TransactionExample,
         { id: this.modelName, field2: 2 },
         { field2: undefined })
@@ -638,7 +638,7 @@ class TransactionWriteTest extends QuickTransactionTest {
 
   async testCreatePartialModel () {
     let fut = db.Context.run(async tx => {
-      tx.createOrPut(
+      tx.createOrOverwrite(
         TransactionExampleWithRequiredField,
         {
           field1: 1,
@@ -652,7 +652,7 @@ class TransactionWriteTest extends QuickTransactionTest {
     await expect(fut).rejects.toThrow(/missing required value/)
 
     fut = db.Context.run(async tx => {
-      tx.createOrPut(
+      tx.createOrOverwrite(
         TransactionExampleWithRequiredField,
         {
           field1: 1,
@@ -667,7 +667,7 @@ class TransactionWriteTest extends QuickTransactionTest {
     await expect(fut).rejects.toThrow(/missing required value/)
 
     await db.Context.run(async tx => {
-      tx.createOrPut(
+      tx.createOrOverwrite(
         TransactionExampleWithRequiredField,
         {
           id: this.modelName,
@@ -689,7 +689,7 @@ class TransactionWriteTest extends QuickTransactionTest {
     // New model should work without conditions
     let name = uuidv4()
     await db.Context.run(async tx => {
-      tx.createOrPut(
+      tx.createOrOverwrite(
         TransactionExample,
         {
           id: name,
@@ -706,7 +706,7 @@ class TransactionWriteTest extends QuickTransactionTest {
     // New model should work with conditions too
     name = uuidv4()
     await db.Context.run(async tx => {
-      tx.createOrPut(
+      tx.createOrOverwrite(
         TransactionExample,
         {
           field2: undefined,
@@ -723,7 +723,7 @@ class TransactionWriteTest extends QuickTransactionTest {
   async testConditionalPut () {
     const name = uuidv4()
     await db.Context.run(async tx => {
-      tx.createOrPut(
+      tx.createOrOverwrite(
         TransactionExample,
         {
           field1: 9988234,
@@ -738,7 +738,7 @@ class TransactionWriteTest extends QuickTransactionTest {
     expect(model.field1).toBe(9988234)
 
     const fut = db.Context.run(async tx => {
-      tx.createOrPut(
+      tx.createOrOverwrite(
         TransactionExample,
         {
           field2: 111,
@@ -751,7 +751,7 @@ class TransactionWriteTest extends QuickTransactionTest {
     await expect(fut).rejects.toThrow(db.TransactionFailedError)
 
     await db.Context.run(async tx => {
-      tx.createOrPut(
+      tx.createOrOverwrite(
         TransactionExample,
         {
           field2: 111,
@@ -766,12 +766,12 @@ class TransactionWriteTest extends QuickTransactionTest {
     expect(model.field2).toBe(111)
   }
 
-  async testTransactionalCreateOrPut () {
+  async testTransactionalCreateOrOverwrite () {
     const ids = [uuidv4(), uuidv4()]
     const helper = async (value) => {
       await db.Context.run(async tx => {
         for (const id of ids) {
-          tx.createOrPut(
+          tx.createOrOverwrite(
             TransactionExample,
             {
               id,
@@ -803,7 +803,7 @@ class TransactionWriteTest extends QuickTransactionTest {
     const model = await txGetRequired(data)
     const newVal = Math.floor(Math.random() * 99999999)
     await db.Context.run(async tx => {
-      tx.update(
+      tx.updateWithoutRead(
         TransactionExampleWithRequiredField,
         { id: modelName, field1: model.field1 },
         { field1: newVal })
@@ -815,7 +815,7 @@ class TransactionWriteTest extends QuickTransactionTest {
 
   async testEmptyUpdate () {
     const fut = db.Context.run(async tx => {
-      tx.update(
+      tx.updateWithoutRead(
         TransactionExample,
         { id: '123', field1: 1 },
         { })
@@ -829,13 +829,13 @@ class TransactionWriteTest extends QuickTransactionTest {
   async testDuplicateTracking () {
     // verify create then get on non existing item fails
     let future = db.Context.run(async tx => {
-      tx.createOrPut(TransactionExample, { id: 'abc', field1: 1 })
+      tx.createOrOverwrite(TransactionExample, { id: 'abc', field1: 1 })
       await tx.get(TransactionExample, { id: 'abc' })
     })
     await expect(future)
       .rejects
       .toThrow(
-        'Model tracked for Get already tracked from CreateOrPut: unittestTransactionExample _id=abc'
+        'Model tracked for Get already tracked from CreateOrOverwrite: unittestTransactionExample _id=abc'
       )
 
     // verify delete then get fails
@@ -861,7 +861,7 @@ class TransactionReadOnlyTest extends QuickTransactionTest {
   async testMakeReadOnlyDuringTx () {
     await expect(db.Context.run(async tx => {
       tx.makeReadOnly()
-      tx.update(TransactionExample, { id: uuidv4() }, { field1: 1 })
+      tx.updateWithoutRead(TransactionExample, { id: uuidv4() }, { field1: 1 })
     })).rejects.toThrow('read-only')
   }
 
@@ -1267,10 +1267,10 @@ class TransactionCacheModelsTest extends BaseTest {
   }
 
   async testPutModels () {
-    // Models created with createOrPut cannot be read and modified afterwards
+    // Models created with createOrOverwrite cannot be read and modified afterwards
     const id = uuidv4()
     const fut = db.Context.run({ cacheModels: true }, async tx => {
-      tx.createOrPut(TransactionExample,
+      tx.createOrOverwrite(TransactionExample,
         { id, field1: 3 }
       )
       await tx.get(TransactionExample.key({ id }))

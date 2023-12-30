@@ -877,27 +877,13 @@ class OptDefaultExampleTest extends BaseTest {
       }
     }
 
-    // the default value for new fields isn't stored in the db yet (old rows
-    // have not been changed yet)
-    let fut = db.Context.run(async tx => {
-      await tx.update(OptDefaultExample2,
-        { id: idSpecifyNothing, def2: 8 }, { def: 1 })
-    })
-    await expect(fut).rejects.toThrow(/outdated \/ invalid conditions/)
-
-    // we can (ONLY) use update() on defaults that have been written to the db
+    // updating a field in the database does not also populate a new default
     await db.Context.run(async tx => {
-      await tx.update(OptDefaultExample2,
-        { id: idSpecifyNothing, def: 7 }, { opt2: 11 })
+      await tx.updateWithoutRead(OptDefaultExample2,
+        { id: idSpecifyNothing, opt2: 11 })
     })
-
-    // blind updates are only partial, so they won't populate a new default
-    // field unless explicitly given a value for it
-    fut = db.Context.run(async tx => {
-      await tx.update(OptDefaultExample2,
-        { id: idSpecifyNothing, def2: 8 }, { def: 2 })
-    })
-    await expect(fut).rejects.toThrow(/outdated \/ invalid conditions/)
+    await expect(db.verifyDoc(
+      OptDefaultExample2, idSpecifyNothing, { opt2: 11 }))
 
     // verify that these are all in the proper state when accessing old rows;
     // also, accessing the row populates the default value for the new field
@@ -907,10 +893,13 @@ class OptDefaultExampleTest extends BaseTest {
         7, undefined, 7,
         8, 11, undefined)
     })
+    await expect(db.verifyDoc(
+      OptDefaultExample2, idSpecifyNothing, { opt2: 11, def2: 8 }))
+
     await db.Context.run(async tx => {
       // verify the db was updated by doing a blind update dependent on it
-      await tx.update(OptDefaultExample2,
-        { id: idSpecifyNothing, def2: 8 }, { def: 100 })
+      await tx.updateWithoutRead(OptDefaultExample2,
+        { id: idSpecifyNothing, def: 100 })
     })
     await db.Context.run(async tx => {
       check(await tx.get(OptDefaultExample2, idSpecifyNothing),
@@ -926,13 +915,8 @@ class OptDefaultExampleTest extends BaseTest {
       row.def = 3
     })
     await db.Context.run(async tx => {
-      // verify the db was updated by doing a blind update dependent on it
-      await tx.update(OptDefaultExample2,
-        { id: idUndef, def: 3, def2: 8 }, { opt2: 101 })
-    })
-    await db.Context.run(async tx => {
       check(await tx.get(OptDefaultExample2, idUndef),
-        3, undefined, undefined, 8, 101, undefined)
+        3, undefined, undefined, 8, undefined, undefined)
     })
   }
 }
@@ -950,7 +934,7 @@ class SnapshotTest extends BaseTest {
     })
   }
 
-  async testGetNewModel () {
+  async testGetNewModelSnapshot () {
     const id = uuidv4()
     const result = await db.Context.run(async tx => {
       const m = await tx.get(JSONExample,

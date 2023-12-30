@@ -371,17 +371,10 @@ class Context {
    * @param {CompositeID} key The key to update
    * @param {Object} data Updated fields for the item
    */
-  async updateWithoutRead (key, data) {
-    Object.keys(data).forEach(k => {
-      if (key.Cls._attrs[k].isKey) {
-        throw new InvalidParameterError('data', 'must not contain key fields')
-      }
-    })
-
-    const vals = { ...key.keyComponents, ...data }
-    const model = new key.Cls(true, vals, true)
+  async updateWithoutRead (Cls, data) {
+    const model = new Cls(true, data, true)
     await model.finalize()
-    const docRef = key.docRef
+    const docRef = model.__key.docRef
     await this.__dbCtx.update(docRef, model.toJSON())
   }
 
@@ -395,6 +388,19 @@ class Context {
    */
   create (Cls, data) {
     const model = new Cls(true, { ...data })
+    this.__watchForChangesToSave(model)
+    return model
+  }
+
+  /**
+   * Sets a model's data. Will overwrite the existing data, if any.
+   *
+   * @param {Model} Cls A Model class.
+   * @param {CompositeID|Object} data A superset of CompositeID of the model,
+   *   plus any data for Fields on the Model.
+   */
+  createOrOverwrite (Cls, data) {
+    const model = new Cls(true, { ...data }, false, true)
     this.__watchForChangesToSave(model)
     return model
   }

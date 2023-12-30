@@ -587,18 +587,19 @@ Otherwise, deletion on missing rows will be treated as noop.
 ## Performance
 ### Blind Writes
 Blind updates write a row to the DB without reading it first. This is useful
-when we already know model's fields' values and wish to update them without the overhead of an unnecessary read:
+when we wish to update them without the overhead of an unnecessary read (in
+theory, the update can have preconditions but this isn't supported yet... just
+do a read in that case to verify them):
 ```javascript
-// this updates the specified order row to quantity=2, but only if the current
-// quantity === 1 and product === 'coffee'
-tx.update(Order, { id, quantity: 1, product: 'coffee' }, { quantity: 2 })
+// this updates the specified order row to quantity=2
+tx.updateWithoutRead(Order, { id, quantity: 2 })
 ```
 
 To maintain consistency, old values _must_ be provided for each field to be
 updated. In addition, any values used to derive the new value should be
 included in the old values. Failure to do so may result in race condition bugs.
 
-Similarly, rows can be blindly created or overwritten with `createOrPut`
+Similarly, rows can be blindly created or overwritten with `createOrOverwrite`
 method. This is useful when we don't care about the previous value (if any).
 For example, maybe we're tracking whether a customer has used a particular
 feature or not. When they use it, we may just want to blindly record it:
@@ -614,13 +615,13 @@ feature or not. When they use it, we may just want to blindly record it:
     }
     await db.Context.run(async tx => {
       // Overwrite the row regardless of the content
-      const ret = tx.createOrPut(LastUsedFeature,
+      const ret = tx.createOrOverwrite(LastUsedFeature,
         { user: 'Bob', feature: 'refer a friend', epoch: 234 })
       expect(ret).toBe(undefined) // should not return anything
     })
 
     await db.Context.run(tx => {
-      tx.createOrPut(LastUsedFeature,
+      tx.createOrOverwrite(LastUsedFeature,
         // this contains the new value(s) and the row's key; if a value is
         // undefined then the field will be deleted (it must be optional for
         // this to be allowed)

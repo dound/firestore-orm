@@ -449,8 +449,8 @@ class DBReadmeTest extends BaseTest {
     const data = { id, product: 'coffee', quantity: 1 }
     await db.Context.run(tx => tx.create(OrderWithNoPrice, data))
     await db.Context.run(async tx => {
-      const ret = tx.update(
-        OrderWithNoPrice, { id, quantity: 1, product: 'coffee' }, { quantity: 2 })
+      const ret = tx.updateWithoutRead(
+        OrderWithNoPrice, { id, quantity: 2 })
       expect(ret).toBe(undefined) // should not return anything
     })
     await db.Context.run(async tx => {
@@ -472,13 +472,13 @@ class DBReadmeTest extends BaseTest {
     }
     await db.Context.run(async tx => {
       // Overwrite the row regardless of the content
-      const ret = tx.createOrPut(LastUsedFeature,
+      const ret = tx.createOrOverwrite(LastUsedFeature,
         { user: 'Bob', feature: 'refer a friend', epoch: 234 })
       expect(ret).toBe(undefined) // should not return anything
     })
 
     await db.Context.run(tx => {
-      tx.createOrPut(LastUsedFeature,
+      tx.createOrOverwrite(LastUsedFeature,
         // this contains the new value(s) and the row's key; if a value is
         // undefined then the field will be deleted (it must be optional for
         // this to be allowed)

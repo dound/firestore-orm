@@ -24,13 +24,16 @@ class Model {
    * Create a representation of a database Item. Should only be used by the
    * library.
    */
-  constructor (isNew, vals, isForUpdateAndMayBePartial = false) {
+  constructor (isNew, vals, isForUpdateAndMayBePartial = false, isSet = false) {
     this.constructor.__doOneTimeModelPrep()
     assert.ok(typeof isNew === 'boolean', 'isNew must be a boolean')
     assert.ok(typeof isForUpdateAndMayBePartial === 'boolean',
       'isForUpdateAndMayBePartial must be a boolean')
     this.isNew = isNew
     this.__isPartial = isForUpdateAndMayBePartial
+    this.__isSet = isSet
+    assert.ok(!isSet || !isForUpdateAndMayBePartial,
+      'may not be partial when using isSet')
 
     // __cached_attrs has a __Field subclass object for each non-key attribute.
     this.__cached_attrs = {}
@@ -291,6 +294,7 @@ class Model {
 
   __write (ctx) {
     const docRef = this.__key.docRef
+    this.finalize()
     const data = {}
     for (const field of Object.values(this.__cached_attrs)) {
       if (!field.isKey) {
@@ -304,8 +308,14 @@ class Model {
     }
 
     if (this.isNew) {
-      // write the entire document from scratch (fails if it already exists)
-      ctx.__dbCtx.create(docRef, data)
+      // write the entire document from scratch
+      if (this.__isSet) {
+        // overwrite if it already exists (create if missing)
+        ctx.__dbCtx.set(docRef, data, { merge: false })
+      } else {
+        // fail if it already exists
+        ctx.__dbCtx.create(docRef, data)
+      }
     } else {
       ctx.__dbCtx.update(docRef, data)
     }
