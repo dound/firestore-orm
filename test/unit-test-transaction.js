@@ -380,7 +380,7 @@ class TransactionWriteTest extends QuickTransactionTest {
       txModel.field1 = val
     })
     await expect(fut).rejects.toThrow(db.ModelAlreadyExistsError)
-    expect(tryCnt).toBe(1)
+    expect(tryCnt).toBe(1) // non-retryable error so only 1 attempt should've been made
   }
 
   async testReadContention () {

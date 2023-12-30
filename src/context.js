@@ -101,7 +101,7 @@ class Context {
       consistentReads: true,
       initialBackoff: 500,
       maxBackoff: 10000,
-      retries: 4,
+      retries: process.env.INDEBUGGER ? 0 : 4, // no retry by default in unit tests for speed
       cacheModels: false
     }
   }
