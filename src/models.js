@@ -25,6 +25,7 @@ class Model {
    * library.
    */
   constructor (isNew, vals, isForUpdateAndMayBePartial = false) {
+    this.constructor.__doOneTimeModelPrep()
     assert.ok(typeof isNew === 'boolean', 'isNew must be a boolean')
     assert.ok(typeof isForUpdateAndMayBePartial === 'boolean',
       'isForUpdateAndMayBePartial must be a boolean')
