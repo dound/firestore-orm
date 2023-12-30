@@ -144,7 +144,7 @@ class Context {
           'without consistency gaurantees (and the locks they may acquire)')
       }
     }
-    this.isUsingTx = !this.options.readOnly
+    this.isUsingTx = !this.options.readOnly || this.options.consistentReads
   }
 
   /**

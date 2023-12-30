@@ -374,8 +374,10 @@ class HookExample extends db.Model {
 
 
 ### Warning: Race Conditions
-Race conditions are still possible! Consider a ski resort which records some
-stats about skiers and lifts:
+Race conditions are still possible! If your context doesn't use a transaction,
+individual reads may not be consistent with one another. A transaction is used
+if your context is not read only or if using consistentReads (the default).
+Consider a ski resort which records some stats about skiers and lifts:
 ```javascript
 class SkierStats extends db.Model {
   static KEY = { resort: S.str }
@@ -418,17 +420,7 @@ This sequence is possible:
   1. The request to read lift stats complete: `numLiftRides=1` _!!!_
   1. Our application code thinks there was one lift ride taken, but no skiers.
 
-To ensure this does not occur, use `db.get()` to fetch both rows in a single
-request:
-```javascript
-const [skierStats, liftStats] = await tx.get([
-  SkierStats.key(resort),
-  LiftStats.key(resort)
-])
-```
-
-Under the hood, when multiple rows are fetched with strong consistency,
-DynamoDB's `transactGetItems` API is called to prevent races mentioned above.
+To ensure this does not occur, use a transaction.
 
 
 ### Warning: Side Effects

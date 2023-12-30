@@ -48,6 +48,29 @@ class ComplexFieldsExample extends db.Model {
   }
 }
 
+class SkierStats extends db.Model {
+  static KEY = { resort: S.str }
+  static FIELDS = { numSkiers: S.int.min(0).default(0) }
+}
+
+class LiftStats extends db.Model {
+  static KEY = { resort: S.str }
+  static FIELDS = { numLiftRides: S.int.min(0).default(0) }
+}
+
+async function liftRideTaken (resort, isNewSkier) {
+  await db.Context.run(async tx => {
+    const opts = { createIfMissing: true }
+    const [skierStats, liftStats] = await Promise.all([
+      !isNewSkier ? Promise.resolve() : tx.get(SkierStats, resort, opts),
+      tx.get(LiftStats, resort, opts)])
+    if (isNewSkier) {
+      skierStats.numSkiers += 1
+    }
+    liftStats.numLiftRides += 1
+  })
+}
+
 // code from the readme (this suite is not intended to create comprehensive
 // tests for features; it only verifies that code from the readme actually runs
 // correctly (and continues to do so after any library changes)
@@ -306,32 +329,40 @@ class DBReadmeTest extends BaseTest {
     expect(count).toBe(5)
   }
 
-  async testRaceCondition () {
-    class SkierStats extends db.Model {
-      static KEY = { resort: S.str }
-      static FIELDS = { numSkiers: S.int.min(0).default(0) }
-    }
-    class LiftStats extends db.Model {
-      static KEY = { resort: S.str }
-      static FIELDS = { numLiftRides: S.int.min(0).default(0) }
-    }
-
-    async function liftRideTaken (resort, isNewSkier) {
-      await db.Context.run(async tx => {
-        const opts = { createIfMissing: true }
-        const [skierStats, liftStats] = await Promise.all([
-          !isNewSkier ? Promise.resolve() : tx.get(SkierStats, resort, opts),
-          tx.get(LiftStats, resort, opts)])
-        if (isNewSkier) {
-          skierStats.numSkiers += 1
-        }
-        liftStats.numLiftRides += 1
-      })
-    }
-
-    // force the skier stats fetch to resolve first
+  async testPessimisticLocking () {
+    // try to force the skier stats fetch to resolve first... it will fail
+    // because Firestore default of pessimistic locking prevents the second
+    // non-read-only transaction from acquiring locks.
     const resort = uuidv4()
     await db.Context.run(async tx => {
+      const skierStats = await tx.get(SkierStats, resort)
+      try {
+        await liftRideTaken(resort, true)
+      } catch (e) {
+        expect(e.message).toContain('Transaction lock timeout')
+      }
+      const liftStats = await tx.get(LiftStats, resort)
+      expect(skierStats).toEqual(undefined)
+      expect(liftStats).toEqual(undefined)
+    })
+
+    // the items were never created
+    await db.Context.run(async tx => {
+      const [skierStats, liftStats] = await tx.get([
+        SkierStats.key(resort),
+        LiftStats.key(resort)
+      ])
+      expect(skierStats).toEqual(undefined)
+      expect(liftStats).toEqual(undefined)
+    })
+  }
+
+  async testRaceCondition () {
+    // by making our context NOT use a transaction, we can show how subsequent
+    // reads may not be consistent with one another (one sees the state before
+    // another tx, and the other the state after)
+    const resort = uuidv4()
+    await db.Context.run({ readOnly: true, consistentReads: false }, async tx => {
       const skierStats = await tx.get(SkierStats, resort)
       await liftRideTaken(resort, true)
       const liftStats = await tx.get(LiftStats, resort)
