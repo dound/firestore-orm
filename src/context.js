@@ -110,7 +110,7 @@ class Context {
     this.__trackedModelsList = []
 
     // our reference to the db client changes to a transaction ref if needed
-    this.__dbCtx = Key.firestoreClient
+    this.__dbCtx = Key.firestoreDB
 
     const defaults = this.defaultOptions
     this.options = loadOptionDefaults(options, defaults)
@@ -450,7 +450,7 @@ class Context {
   async __tryToRun (func) {
     const ctx = this
     if (ctx.isUsingTx) {
-      return await Key.firestoreClient.runTransaction(async tx => {
+      return await Key.firestoreDB.runTransaction(async tx => {
         ctx.__reset()
         ctx.__dbCtx = tx
         try {
@@ -458,7 +458,7 @@ class Context {
           this.__saveChangedModels()
           return ret
         } finally {
-          ctx.__dbCtx = Key.firestoreClient
+          ctx.__dbCtx = Key.firestoreDB
         }
       }, {
         readOnly: ctx.options.readOnly,

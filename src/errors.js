@@ -114,7 +114,7 @@ class InvalidCachedModelError extends GenericModelError {
 class ModelTrackedTwiceError extends GenericModelError {
   constructor (model, trackedModel) {
     const msg = 'Model tracked twice'
-    super(msg, model.__tableName, model._id)
+    super(msg, model.constructor.tableName, model._id)
     this.model = model
     this.model2 = trackedModel
   }

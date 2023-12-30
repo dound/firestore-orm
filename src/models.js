@@ -26,7 +26,8 @@ class Model {
    */
   constructor (isNew, vals, isForUpdateAndMayBePartial = false) {
     assert.ok(typeof isNew === 'boolean', 'isNew must be a boolean')
-    assert.ok(typeof isPartial === 'boolean', 'isPartial must be a boolean')
+    assert.ok(typeof isForUpdateAndMayBePartial === 'boolean',
+      'isForUpdateAndMayBePartial must be a boolean')
     this.isNew = isNew
     this.__isPartial = isForUpdateAndMayBePartial
 
@@ -36,13 +37,16 @@ class Model {
     // __cached_attrs has a __Field subclass object for each non-key attribute.
     this.__attr_getters = {}
 
-    // Decode _id (stored in DB as string)
-    const _id = vals._id
-    delete vals._id
-    const keyComponents = this.constructor.__decodeCompoundValue(
-      this.constructor.__keyOrder, _id)
-    Object.assign(vals, keyComponents)
-    this.__key = new Key(this.constructor, _id, keyComponents)
+    // pull out the Key for this item
+    let keyComponents
+    if (vals.__id !== undefined) {
+      keyComponents = this.constructor.__decodeCompoundValue(
+        this.constructor.__keyOrder, vals._id)
+      delete vals._id
+      Object.assign(vals, keyComponents)
+    } else {
+      this.__key = this.constructor.key(vals, true)
+    }
 
     // add user-defined fields from FIELDS & key components from KEY
     for (const [name, opts] of Object.entries(this.constructor._attrs)) {
@@ -263,15 +267,6 @@ class Model {
   }
 
   /**
-   * The table name this model is associated with.
-   * Just a convenience wrapper around the static version of this method.
-   * @private
-   */
-  get __tableName () {
-    return Object.getPrototypeOf(this).constructor.tableName
-  }
-
-  /**
    * Given a mapping, split compositeKeys from other model fields. Return a
    * 3-tuple, [encodedKey, keyComponents, modelData].
    *
@@ -297,18 +292,16 @@ class Model {
     const docRef = this.__key.docRef
     const data = {}
     for (const field of Object.values(this.__cached_attrs)) {
-      if (!field.isKey) {
-        if (this.isNew || field.hasChangesToCommit(true)) {
-          data[field.name] = field.__valueForFirestoreWrite()
-        }
+      if (this.isNew || (!field.isKey && field.hasChangesToCommit(true))) {
+        data[field.name] = field.__valueForFirestoreWrite()
       }
     }
 
     if (this.isNew) {
       // write the entire document from scratch (fails if it already exists)
-      ctx.create(docRef, data)
+      ctx.__dbCtx.create(docRef, data)
     } else {
-      ctx.update(docRef, data)
+      ctx.__dbCtx.update(docRef, data)
     }
   }
 
@@ -415,13 +408,13 @@ class Model {
    *   instead be just that field's value.
    * @returns {Key} a Key object.
    */
-  static key (vals) {
+  static key (vals, ignoreData = false) {
     const processedVals = this.__splitKeysAndDataWithPreprocessing(vals)
     const [encodedKey, keyComponents, data] = processedVals
 
     // ensure that vals only contained key components (no data components)
     const dataKeys = Object.keys(data)
-    if (dataKeys.length) {
+    if (dataKeys.length && !ignoreData) {
       dataKeys.sort()
       throw new InvalidParameterError('vals',
         `received non-key fields: ${dataKeys.join(', ')}`)
