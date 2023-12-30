@@ -26,6 +26,8 @@ db.checkWriteCall = (model) => {
   for (const k of ['create', 'update']) {
     fakeDBCtx[k] = (docRef, data) => logIt(k, docRef, data)
   }
+  // __write() will resolve synchronously because we're using fakeDBCtx which
+  // is just sync code
   model.__write({ __dbCtx: fakeDBCtx })
   return ret
 }

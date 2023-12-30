@@ -1,5 +1,6 @@
 const assert = require('assert')
 
+const { Transaction } = require('@google-cloud/firestore')
 const S = require('@pocketgems/schema')
 const stableStringify = require('fast-json-stable-stringify')
 
@@ -293,7 +294,22 @@ class Model {
     return [_id, keyComponents, modelData]
   }
 
-  __write (ctx) {
+  async __write (ctx) {
+    // If ctx is a Transaction object, then its mutator methods like create(),
+    // etc.return the Transaction object (for chaining). There's no promise in
+    // this case because the updates will be flushed when the transaction
+    // commits.
+    // If ctx is the Firestore object, then a promise is returned. In that case
+    // we await on it here.
+    // The return value from this function is always undefined for consistency.
+    const ret = this.__writeHelper(ctx)
+    if (ret instanceof Transaction) {
+      return
+    }
+    await ret
+  }
+
+  __writeHelper (ctx) {
     const docRef = this.__key.docRef
     this.finalize()
     const data = {}
@@ -312,10 +328,10 @@ class Model {
       // write the entire document from scratch
       if (this.__isSet) {
         // overwrite if it already exists (create if missing)
-        ctx.__dbCtx.set(docRef, data, { merge: false })
+        return ctx.__dbCtx.set(docRef, data, { merge: false })
       } else {
         // fail if it already exists
-        ctx.__dbCtx.create(docRef, data)
+        return ctx.__dbCtx.create(docRef, data)
       }
     } else {
       if (!Object.keys(data).length) {
@@ -323,7 +339,7 @@ class Model {
           'update did not provide any data to change',
           this.constructor.tableName, this.__key.encodedKey)
       }
-      ctx.__dbCtx.update(docRef, data)
+      return ctx.__dbCtx.update(docRef, data)
     }
   }
 

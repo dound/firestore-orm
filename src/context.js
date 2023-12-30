@@ -168,13 +168,13 @@ class Context {
     }
   }
 
-  __saveChangedModels () {
+  async __saveChangedModels () {
     for (const model of this.__trackedModelsList) {
       if (model && (model.isNew || model.__isMutated(!this.options.readOnly))) {
         if (this.options.readOnly) {
           throw new WriteAttemptedInReadOnlyTxError(model)
         }
-        model.__write(this)
+        await model.__write(this)
       }
     }
   }
@@ -469,7 +469,7 @@ class Context {
         ctx.__dbCtx = tx
         try {
           const ret = await func(ctx)
-          this.__saveChangedModels()
+          await this.__saveChangedModels()
           return ret
         } finally {
           ctx.__dbCtx = Key.firestoreDB
