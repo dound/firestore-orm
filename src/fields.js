@@ -167,7 +167,6 @@ class __Field extends __BaseField {
    * @param {boolean} valSpecified whether val was specified (if this is
    *   true, then the field was present)
    * @param {boolean} isForUpdate whether this field is part of an update
-   * @param {boolean} isForDelete whether this field is part of an delete
    */
   constructor ({
     name,
@@ -175,8 +174,7 @@ class __Field extends __BaseField {
     val,
     valIsFromDB,
     valSpecified,
-    isForUpdate,
-    isForDelete
+    isForUpdate
   }) {
     super()
     for (const [key, value] of Object.entries(opts)) {
@@ -236,7 +234,7 @@ class __Field extends __BaseField {
     if (!this.isKey) { // keys are validated elsewhere; don't re-validate
       if (!useDefault) { // default was validated by __validateFieldOptions
         // validate everything except values omitted from an update() call
-        if (valSpecified || !(isForUpdate || isForDelete)) {
+        if (valSpecified || !isForUpdate) {
           this.validate()
         }
       }

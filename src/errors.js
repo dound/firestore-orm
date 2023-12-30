@@ -113,14 +113,10 @@ class InvalidCachedModelError extends GenericModelError {
  */
 class ModelTrackedTwiceError extends GenericModelError {
   constructor (model, trackedModel) {
-    const getSourceDisplayText = (model) => {
-      return Object.keys(model.__src)[0].replace('is', '')
-    }
-    const src = getSourceDisplayText(model)
-    const trackedSrc = getSourceDisplayText(trackedModel)
-    const msg = `Model tracked for ${src} already tracked from ${trackedSrc}`
+    const msg = 'Model tracked twice'
     super(msg, model.__tableName, model._id)
     this.model = model
+    this.model2 = trackedModel
   }
 }
 

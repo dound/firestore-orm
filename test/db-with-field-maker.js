@@ -71,8 +71,7 @@ function fieldFromFieldOptions (Cls, options) {
     val: initVal,
     valIsFromDB,
     valSpecified,
-    isForUpdate: false,
-    isForDelete: false
+    isForUpdate: false
   })
 }
 

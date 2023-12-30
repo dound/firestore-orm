@@ -24,10 +24,11 @@ class Model {
    * Create a representation of a database Item. Should only be used by the
    * library.
    */
-  constructor (isNew, vals, isPartial = false) {
+  constructor (isNew, vals, isForUpdateAndMayBePartial = false) {
     assert.ok(typeof isNew === 'boolean', 'isNew must be a boolean')
     assert.ok(typeof isPartial === 'boolean', 'isPartial must be a boolean')
-    this.isNew = !!isNew
+    this.isNew = isNew
+    this.__isPartial = isForUpdateAndMayBePartial
 
     // __cached_attrs has a __Field subclass object for each non-key attribute.
     this.__cached_attrs = {}
@@ -75,10 +76,9 @@ class Model {
         name,
         opts,
         val: vals[name],
-        valIsFromDB: !this.isNew,
+        valIsFromDB: !this.isNew && !this.__isPartial,
         valSpecified: valSpecified,
-        isForUpdate: this.__src.isUpdateMustExist,
-        isForDelete: this.__src.isDelete
+        isForUpdate: this.__isPartial
       })
       Object.seal(field)
       this.__cached_attrs[name] = field

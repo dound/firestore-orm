@@ -27,9 +27,6 @@ const {
 } = require('./fields')
 const { Key, UniqueKeyList } = require('./key')
 const { Model } = require('./models')
-const {
-  ITEM_SOURCE
-} = require('./utils')
 
 /**
  * @module firestore
@@ -74,8 +71,7 @@ function setup (firestoreDB) {
         ObjectField,
         StringField
       ],
-      getWithArgs,
-      ITEM_SOURCE
+      getWithArgs
     }
   }
   return toExport
