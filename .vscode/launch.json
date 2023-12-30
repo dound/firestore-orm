@@ -25,9 +25,7 @@
             "internalConsoleOptions": "neverOpen",
             "env": {
                 "INDEBUGGER": "1",
-                "FIRESTORE_ENDPOINT": "http://localhost:8110",
-                "SERVICE": "unittest",
-                "USE_EMULATOR": "1"
+                "FIRESTORE_EMULATOR_HOST": "[::1]:8404"
             }
         }
     ]
