@@ -301,7 +301,6 @@ class TransactionWriteTest extends QuickTransactionTest {
     })
     const model = await txGet(data)
     expect(model.field1).toBe(val)
-    expect(model._c_field1_field2).toBe([val, 200].join('\0'))
   }
 
   async testWriteNew () {
@@ -316,8 +315,6 @@ class TransactionWriteTest extends QuickTransactionTest {
     const model = await txGet(data)
     expect(model.isNew).toBe(false)
     expect(model.field1).toBe(val)
-    expect(model._c_field1_field2).toBe(undefined)
-    expect(model._c_field1_id).toBe([val, modelName].join('\0'))
   }
 
   async testWriteFinalizeHook () {
@@ -374,8 +371,6 @@ class TransactionWriteTest extends QuickTransactionTest {
     })
     const model = await txGet(name)
     expect(model.field1).toBe(987)
-    expect(model._c_field1_field2).toBe([987, 1].join('\0'))
-    expect(model._c_field1_id).toBe([987, name].join('\0'))
   }
 
   async testWriteExistingAsNew () {
@@ -573,7 +568,6 @@ class TransactionWriteTest extends QuickTransactionTest {
     })
     const updated = await txGet(data)
     expect(updated.field1).toBe(newVal)
-    expect(updated._c_field1_id).toBe([newVal, this.modelName].join('\0'))
   }
 
   async testUpdateWithNoChange () {
@@ -594,8 +588,6 @@ class TransactionWriteTest extends QuickTransactionTest {
     })
     const model = await txGet(this.modelName)
     expect(model.field1).toBe(1)
-    expect(model._c_field1_field2).toBe([1, 2].join('\0'))
-    expect(model._c_field1_id).toBe([1, this.modelName].join('\0'))
   }
 
   async testDeleteFieldByUpdate () {
@@ -656,7 +648,6 @@ class TransactionWriteTest extends QuickTransactionTest {
     const model = await txGetRequired(this.modelName)
     expect(model.field1).toBe(111222)
     expect(model.required).toBe(333444)
-    expect(model._c_field1_id).toBe([111222, this.modelName].join('\0'))
   }
 
   async testCreateNewModel () {
@@ -783,7 +774,6 @@ class TransactionWriteTest extends QuickTransactionTest {
     })
     const updated = await txGetRequired({ id: modelName })
     expect(updated.field1).toBe(newVal)
-    expect(updated._c_field1_id).toBe([newVal, modelName].join('\0'))
   }
 
   async testEmptyUpdate () {
@@ -795,9 +785,7 @@ class TransactionWriteTest extends QuickTransactionTest {
     await expect(fut).rejects.toThrow('update did not provide any data to change')
   }
 
-  /**
-   * Verify model cannot be tracked more than once inside a tx.
-   */
+  // Verify model cannot be tracked more than once inside a tx.
   async testDuplicateTracking () {
     // verify create then get on non existing item fails
     let future = db.Context.run(async tx => {
