@@ -1016,6 +1016,25 @@ class UniqueKeyListTest extends BaseTest {
     })
     expect(result[0].id).toBe(id)
   }
+
+  testMap () {
+    const keys = []
+    for (let i = 0; i < 3; i++) {
+      keys.push(SimpleExample.key(uuidv4()))
+    }
+
+    // add each key a few times
+    const uniques = new db.UniqueKeyList()
+    for (let i = 0; i < 2; i++) {
+      uniques.push(...keys)
+    }
+    uniques.push(keys[0])
+
+    expect(uniques.length).toBe(keys.length)
+    const paths = uniques.map(x => x.docRef.path)
+    const expPaths = keys.map(x => x.docRef.path)
+    expect(paths).toEqual(expPaths)
+  }
 }
 
 runTests(
