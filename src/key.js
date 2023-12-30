@@ -50,6 +50,14 @@ class UniqueKeyList extends Array {
   filter (...args) {
     return Array.prototype.filter.bind(this, ...args)
   }
+
+  map (f) {
+    const ret = []
+    for (let i = 0; i < this.length; i++) {
+      ret.push(f(this[i]))
+    }
+    return ret
+  }
 }
 
 module.exports = {
