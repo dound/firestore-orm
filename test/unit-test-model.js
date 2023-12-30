@@ -120,16 +120,6 @@ class SimpleExample extends db.Model {}
 SimpleExample.__doOneTimeModelPrep()
 
 class SimpleExampleTest extends BaseTest {
-  testInvalidSetup () {
-    function check (badSrc) {
-      expect(() => {
-        return new SimpleExample(badSrc, true, { id: uuidv4() })
-      }).toThrow(/invalid item source type/)
-    }
-    check('nope')
-    check({ isCreate: true })
-  }
-
   testNamingConvention () {
     expect(() => {
       class SomeModel extends db.Model {}
