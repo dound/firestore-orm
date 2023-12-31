@@ -4,9 +4,9 @@ const { LicenseWebpackPlugin } = require('license-webpack-plugin')
 const webpack = require('webpack')
 
 module.exports = {
-  entry: './src/dynamodb.js',
+  entry: './src/firestore.js',
   output: {
-    filename: 'dynamodb.cjs',
+    filename: 'firestoredb.cjs',
     path: path.resolve(__dirname, 'dist'),
     libraryTarget: 'commonjs2'
   },
@@ -29,9 +29,7 @@ module.exports = {
   },
   externals: {
     '@pocketgems/schema': './schema.cjs',
-    assert: './assert.cjs',
-    'amazon-dax-client': 'invalid',
-    'aws-sdk': 'invalid'
+    assert: './assert.cjs'
   },
   plugins: [
     new webpack.DefinePlugin({
@@ -40,7 +38,7 @@ module.exports = {
       }
     }),
     new LicenseWebpackPlugin({
-      outputFilename: 'dynamodb-licenses.txt',
+      outputFilename: 'firestoredb-licenses.txt',
       unacceptableLicenseTest: (licenseType) => (licenseType === 'GPL')
     })
   ]
