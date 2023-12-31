@@ -395,6 +395,7 @@ class Context {
   async updateWithoutRead (Cls, data) {
     const model = new Cls(false, data, true)
     this.__throwIfWritesNotAllowed(model)
+    // TODO: should really track this too
     await model.__write(this)
   }
 
