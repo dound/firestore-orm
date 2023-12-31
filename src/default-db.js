@@ -1,6 +1,6 @@
 // Convenient helper to setup our db connection using environment variables.
 // The constructed db instance will be cached by NodeJS.
-import Firestore from '@google-cloud/firestore'
+const Firestore = require('@google-cloud/firestore')
 
 const setup = require('./firestore')
 
