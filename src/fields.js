@@ -56,10 +56,12 @@ class __FieldInterface {
 /**
  * @namespace Fields
  * @memberof Internal
+ * @private
  */
 
 /**
  * @namespace Internal
+ * @private
  */
 
 /**

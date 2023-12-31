@@ -182,6 +182,7 @@ class Model {
 
   /**
    * Check that field names don't overlap, etc.
+   * @package
    */
   static __doOneTimeModelPrep () {
     // need to check hasOwnProperty because we don't want to access this
@@ -276,6 +277,7 @@ class Model {
    * 3-tuple, [encodedKey, keyComponents, modelData].
    *
    * @param {Object} data data to be split
+   * @package
    */
   static __splitKeysAndData (data) {
     const keyComponents = {}
@@ -348,6 +350,7 @@ class Model {
    * @param {Boolean} expectWrites whether the model will be updated,
    *  default is true.
    * @type {Boolean}
+   * @package
    */
   __isMutated (expectWrites = true) {
     if (this.isNew) {
@@ -372,6 +375,7 @@ class Model {
    * @param {Array<String>} keyOrder order of keys in the string representation
    * @param {Object} values maps component names to values; may have extra
    *   fields (they will be ignored)
+   * @package
    */
   static __encodeCompoundValue (keyOrder, values) {
     const pieces = []
@@ -408,6 +412,7 @@ class Model {
    *
    * @param {Array<String>} keyOrder order of keys in the string representation
    * @param {String} strVal the string representation of a compound value
+   * @package
    */
   static __decodeCompoundValue (keyOrder, val) {
     // Assume val is otherwise a string
@@ -465,6 +470,7 @@ class Model {
     return new Data(this, ...this.__splitKeysAndDataWithPreprocessing(vals))
   }
 
+  /** @package */
   static __splitKeysAndDataWithPreprocessing (vals) {
     // if we only have one key component, then the `_id` **MAY** just be the
     // value rather than a map of key component names to values

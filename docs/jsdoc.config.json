@@ -12,6 +12,7 @@
         "name": "FirestoreDB User Guide"
     },
     "opts": {
+        "access": "protected,public,undefined",
         "encoding": "utf8",
         "destination": "generated",
         "template": "../node_modules/tui-jsdoc-template",

@@ -68,6 +68,7 @@ async function getWithArgs (args, callback) {
  * Context provides a context for interacting with Firestore. It will use a
  * transaction if requested (e.g., we're making changes OR we need consistent
  * reads across multiple items).
+ * @public
  */
 class Context {
   /**
@@ -91,6 +92,7 @@ class Context {
    *   modifications done to the model are reflected in the returned model. If
    *   the model key was used in some API other than "get", an error will
    *   result.
+   * @public
    */
 
   /**
@@ -157,6 +159,7 @@ class Context {
   /**
    * Track models which have been accessed.
    * @param {Model} model A model to track.
+   * @private
    */
   __watchForChangesToSave (model, key) {
     assert.ok(model || key, 'must provide model or key to __watch')
@@ -232,6 +235,7 @@ class Context {
    *
    * @param {Key} key A key for the item
    * @param {GetParams} params Params for how to get the item
+   * @private
    */
   async __getItem (key, params) {
     const docRef = key.docRef
@@ -249,6 +253,7 @@ class Context {
    * @param {Array<Key>} keys A list of keys to get.
    * @param {GetParams} params Params used to get items, all items will be
    *   fetched using the same params.
+   * @private
    */
   async __getItems (keys, params) {
     const docRefs = keys.map(key => key.docRef)
@@ -572,6 +577,7 @@ class Context {
    *
    * @param {ContextOptions} [options]
    * @param {Function} func the closure to run.
+   * @public
    *
    * @example
    * // Can be called in 2 ways:
