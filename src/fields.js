@@ -211,10 +211,6 @@ class __Field extends __BaseField {
         // if the field is optional and the value is not in the db then we
         // can't use the default (we have to assume the field was omitted)
         useDefault = false
-      } else if (isForUpdate) {
-        // when creating an item as the base of an update, we don't implicitly
-        // create defaults; our preconditions are ONLY what is explicitly given
-        useDefault = false
       } else {
         useDefault = true
       }

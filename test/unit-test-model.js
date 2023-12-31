@@ -348,12 +348,40 @@ class BasicExample extends db.Model {
   }
 }
 
+class HasDefaultNonOptionalField extends db.Model {
+  static FIELDS = {
+    x: S.int.default(1),
+    y: S.int
+  }
+}
+
 class WriteTest extends BaseTest {
   async beforeAll () {
     this.modelName = uuidv4()
     await txGet(BasicExample, this.modelName, model => {
       model.noRequiredNoDefault = 0
     })
+  }
+
+  async testUpdateWithDefaultNonOptionalField () {
+    const id = uuidv4()
+    const id2 = uuidv4()
+    await db.Context.run(ctx => {
+      ctx.create(HasDefaultNonOptionalField, { id, x: 2, y: 3 })
+      ctx.create(HasDefaultNonOptionalField, { id: id2, y: 30 })
+    })
+    await db.verifyDoc(HasDefaultNonOptionalField, id, { x: 2, y: 3 })
+    // second doc has the default value for x
+    await db.verifyDoc(HasDefaultNonOptionalField, id2, { x: 1, y: 30 })
+
+    // now try an update... omit the field (x) with a default; it's value
+    // should not change though
+    await db.Context.run(ctx => {
+      ctx.updateWithoutRead(HasDefaultNonOptionalField, { id, y: 4 })
+      ctx.updateWithoutRead(HasDefaultNonOptionalField, { id: id2, y: 40 })
+    })
+    await db.verifyDoc(HasDefaultNonOptionalField, id, { x: 2, y: 4 })
+    await db.verifyDoc(HasDefaultNonOptionalField, id, { x: 1, y: 40 })
   }
 
   async testNoIDInUpdateCondition () {
