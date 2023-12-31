@@ -584,14 +584,11 @@ do a read in that case to verify them):
 tx.updateWithoutRead(Order, { id, quantity: 2 })
 ```
 
-To maintain consistency, old values _must_ be provided for each field to be
-updated. In addition, any values used to derive the new value should be
-included in the old values. Failure to do so may result in race condition bugs.
-
-Similarly, rows can be blindly created or overwritten with `createOrOverwrite`
-method. This is useful when we don't care about the previous value (if any).
-For example, maybe we're tracking whether a customer has used a particular
-feature or not. When they use it, we may just want to blindly record it:
+Similarly, rows can be blindly created or overwritten with the
+`createOrOverwrite` method. This is useful when we don't care about the
+previous value (if any). For example, maybe we're tracking whether a customer
+has used a particular feature or not. When they use it, we may just want to
+blindly record it:
 ```javascript <!-- embed:./test/unit-test-doc.js:scope:testBlindWritesCreateOrUpdate -->
   async testBlindWritesCreateOrUpdate () {
     class LastUsedFeature extends db.Model {
@@ -606,7 +603,7 @@ feature or not. When they use it, we may just want to blindly record it:
       // Overwrite the row regardless of the content
       const ret = tx.createOrOverwrite(LastUsedFeature,
         { user: 'Bob', feature: 'refer a friend', epoch: 234 })
-      expect(ret).toBe(undefined) // should not return anything
+      expect(ret).not.toBe(undefined) // should return a modal, like create()
     })
 
     await db.Context.run(tx => {
