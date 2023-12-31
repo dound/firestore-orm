@@ -1247,6 +1247,21 @@ class WithoutTransactionTest extends BaseTest {
   }
 }
 
+class LeftoverContextTest extends BaseTest {
+  async testInvalidOptions () {
+    const badOpts = { readOnly: false, consistentReads: false }
+    await expect(db.Context.run(badOpts, ctx => {})).rejects.toThrow('consistentReads')
+  }
+
+  async testCannotTrackModelTwiceWithoutCache () {
+    const id = uuidv4()
+    await expect(db.Context.run(async ctx => {
+      await ctx.createOrOverwrite(TransactionExample, { id })
+      await ctx.createOrOverwrite(TransactionExample, { id })
+    })).rejects.toThrow('Model tracked twice')
+  }
+}
+
 runTests(
   ParameterTest,
   TransactionDeleteTest,
@@ -1256,6 +1271,7 @@ runTests(
   TransactionRetryTest,
   TransactionWriteTest,
   TransactionCacheModelsTest,
+  LeftoverContextTest,
   ModelDiffsTest,
   WithoutTransactionTest
 )
