@@ -47,7 +47,7 @@ class Model {
     let keyComponents
     if (vals.__id !== undefined) {
       keyComponents = this.constructor.__decodeCompoundValue(
-        this.constructor.__keyOrder, vals._id)
+        this.constructor.__keyOrder, vals.__id)
       delete vals._id
       Object.assign(vals, keyComponents)
     } else {

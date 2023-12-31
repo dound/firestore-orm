@@ -307,6 +307,13 @@ class IDSchemaTest extends BaseTest {
     expect(CompoundIDExample.__decodeCompoundValue(
       keyOrder, id)).toEqual(compoundID)
 
+    // can create model from compound ID too (e.g., if we do a scan or query
+    // and don't know the keys a priori like we do with a get)
+    const fromEncodedId = new CompoundIDExample(false, { __id: id })
+    expect(fromEncodedId.year).toBe(1900)
+    expect(fromEncodedId.make).toBe('Honda')
+    expect(fromEncodedId.upc).toBe(compoundID.upc)
+
     expect(() => CompoundIDExample.key('unexpected value')).toThrow(
       db.InvalidParameterError)
   }
