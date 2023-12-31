@@ -375,10 +375,6 @@ class Model {
    *   fields (they will be ignored)
    */
   static __encodeCompoundValue (keyOrder, values) {
-    if (keyOrder.length === 0) {
-      return undefined
-    }
-
     const pieces = []
     for (let i = 0; i < keyOrder.length; i++) {
       const fieldName = keyOrder[i]
