@@ -1,5 +1,5 @@
-# DynamoDB Library <!-- omit in toc -->
-This library is used to interact with the DynamoDB NoSQL database. It provides
+# FirestoreDB Library <!-- omit in toc -->
+This library is used to interact with the Firestore NoSQL database. It provides
 high-level abstractions to structure data and prevent race conditions.
 
 [![JSDoc](https://img.shields.io/badge/Documentation-JSDoc-green.svg?logo=githubpages)](https://pocketgems.github.io/dynamodb)
@@ -35,16 +35,13 @@ high-level abstractions to structure data and prevent race conditions.
   - [Key Encoding](#key-encoding)
   - [Nested Transactions are NOT Nested](#nested-transactions-are-not-nested)
   - [Table Creation \& Persistence](#table-creation--persistence)
-  - [Indexes](#indexes)
-    - [Eventual Consistency](#eventual-consistency)
-    - [Creating/Editing Index(es)](#creatingediting-indexes)
-    - [Cost of Indexing](#cost-of-indexing)
   - [Repeated Reads](#repeated-reads)
   - [Key Collection](#key-collection)
 - [Library Collaborator's Guide](#library-collaborators-guide)
   - [AOL](#aol)
   - [Transactions](#transactions-1)
 - [Appendix](#appendix)
+  - [Useful Links](#useful-links)
 
 
 # Core Concepts
@@ -754,36 +751,6 @@ _not_ change anything in the database. Be especially wary about changing the
 key structure — it will probably cause serious problems.
 
 
-## Indexes
-
-Indexes are required by Firestore in order to perform queries. Indexes are automatically kept up to date but are only eventually consistent.
-
-
-### Eventual Consistency
-
-Indexes are eventually consistent. This means that when a database row is updated, its index(es) are updated sometime later. Usually this happens quickly (within seconds) but it could be longer (potentially much longer). Therefore you need to be careful when querying an index and account for this.
-
-```javascript <!-- embed:./test/unit-test-model.js:section:GuildMetadataStart:GuildMetadataEnd -->
-    const GuildMetadata = class extends db.Model {
-      static KEY = { name: S.str }
-      static FIELDS = { league: S.str, rank: S.int }
-    }
-```
-If you query by league, you may find some inconsistency between the league of a guild queried directly vs the list of all the guilds in a league queried using the index.
-
-
-### Creating/Editing Index(es)
-
-`Backfilling`: When you create a new index, it is not backfilled automatically. Index is guaranteed to update ONLY when a model row is saved. TODO: double-check when backfilling occurs for Firestore.
-
-TIP: You can use Dataflow to read/re-write of all the rows.
-
-
-### Cost of Indexing
-
-Indexes increase the physical storage and data write cost for the model.
-
-
 ## Repeated Reads
 By default, reading a row twice in a single transaction is treated as an
 exception.
@@ -918,3 +885,10 @@ provide.
 The samples in this readme can be found in the APIs defined for unit testing
 this library in `test/unit-test-doc.js` in the
 `DBReadmeTest` class.
+
+## Useful Links
+* Firestore NodeJS Reference Docs
+  * https://cloud.google.com/nodejs/docs/reference/firestore/latest/overview
+  * https://googleapis.dev/nodejs/firestore/latest/index.html
+* Firestore [how-to guides](https://cloud.google.com/firestore/docs/how-to) -
+    these are very partial and lack many details, but provide a good overview
