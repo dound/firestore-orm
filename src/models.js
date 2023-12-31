@@ -519,9 +519,6 @@ class Model {
     }
     for (const [name, getter] of Object.entries(this.__attr_getters)) {
       const field = getter()
-      if (!field) {
-        continue
-      }
       if (field.isKey) {
         if (dbKeys || omitKey) {
           continue
