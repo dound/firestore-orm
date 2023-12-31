@@ -843,9 +843,9 @@ class TransactionReadOnlyTest extends QuickTransactionTest {
 }
 
 class TransactionRetryTest extends QuickTransactionTest {
-  async expectRetries (err, maxTries, expectedRuns) {
+  async expectRetries (err, maxRetries, expectedRuns) {
     let cnt = 0
-    const fut = db.Context.run({ retries: maxTries }, () => {
+    const fut = db.Context.run({ retries: maxRetries }, () => {
       cnt++
       throw err
     })
@@ -872,7 +872,22 @@ class TransactionRetryTest extends QuickTransactionTest {
     err.details = 'fake firestore error'
     // this error requires an Element
     err.message = 'gobbly gook Element { type: "X"\n name: "Y"\n } random stuff'
-    await this.expectRetries(err, 1, 1)
+    await this.expectRetries(err, 3, 1)
+
+    // non-error 6 with Element returns the error as is (no retries)
+    err.code = 66
+    await this.expectRetries(err, 3, 1)
+
+    // error 6 with invalid Element returns the error as is
+    err.code = 6
+    err.message = 'Element { wrong thing: "X"\n name: "Y"\n }'
+    await this.expectRetries(err, 3, 1)
+    err.message = 'Elt { type: "X"\n name: "Y"\n }'
+    await this.expectRetries(err, 3, 1)
+    err.message = 'Element { type: "X"\n name: "Y"'
+    await this.expectRetries(err, 3, 1)
+    err.message = 'Element { type: "X" name: "" }' // missing name
+    await this.expectRetries(err, 3, 1)
   }
 
   testIsRetryableErrors () {

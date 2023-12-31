@@ -97,6 +97,7 @@ class Context {
    * Returns the default [options]{@link ContextOptions} for a db context.
    */
   get defaultOptions () {
+    // istanbul ignore next
     return {
       readOnly: false,
       consistentReads: true,
@@ -146,8 +147,8 @@ class Context {
       if (!this.options.consistentReads) {
         throw new InvalidOptionsError('consistentReads',
           'read only contexts use a transaction to read data which results ' +
-          'in a consisntent snapshot; use another context to read data ' +
-          'without consistency gaurantees (and the locks they may acquire)')
+          'in a consistent snapshot; use another context to read data ' +
+          'without consistency guarantees (and the locks they may acquire)')
       }
     }
     this.isUsingTx = !this.options.readOnly || this.options.consistentReads
