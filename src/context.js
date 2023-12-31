@@ -77,7 +77,7 @@ class Context {
    *   allow writes outside of tx for performance too, but omitting it for
    *   safety for now)
    * @property {Boolean} [consistentReads=true] whether multiple reads are
-   *   gauranteed to be from a consistent snapshot
+   *   guaranteed to be from a consistent snapshot
    * @property {Number} [retries=4] The number of times to retry after the
    *   initial attempt fails.
    * @property {Number} [initialBackoff=500] In milliseconds, delay

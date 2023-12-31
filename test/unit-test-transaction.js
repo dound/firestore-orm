@@ -871,7 +871,7 @@ class TransactionRetryTest extends QuickTransactionTest {
     err.code = 6
     err.details = 'fake firestore error'
     // this error requires an Element
-    err.message = 'gobbly gook Element { type: "X"\n name: "Y"\n } random stuff'
+    err.message = 'random gook Element { type: "X"\n name: "Y"\n } random stuff'
     await this.expectRetries(err, 3, 1)
 
     // non-error 6 with Element returns the error as is (no retries)
@@ -969,13 +969,13 @@ class TransactionDeleteTest extends QuickTransactionTest {
     })
 
     await db.Context.run(async tx => {
-      // creat then delete in the same transaction don't cause conflicts
+      // create then delete in the same transaction don't cause conflicts
       const model = await tx.get(data, { createIfMissing: true })
       await tx.delete(model)
     })
 
     await db.Context.run(async tx => {
-      // creat then delete in the same transaction don't cause conflicts
+      // create then delete in the same transaction don't cause conflicts
       const model = tx.create(data.Cls, data.keyComponents)
       await tx.delete(model)
     })
@@ -1220,7 +1220,7 @@ class WithoutTransactionTest extends BaseTest {
 
     // test delete
     await db.Context.run({ readOnly: true, consistentReads: false }, async ctx => {
-      // hackily allow writes outside tx (not recommended, but possible)
+      // hacky allow writes outside tx (not recommended, but possible)
       ctx.options.readOnly = false
       await ctx.delete(TransactionExample.key(id))
       await ctx.__saveChangedModels()

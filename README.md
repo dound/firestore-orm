@@ -54,7 +54,7 @@ is composed of one or more _Columns_ (also known as _Fields_).
 Each row is uniquely identified by a [_Key_](#keys) (more on this later).
 
 ## Minimal Example
-Define a new table like this, which uses the [Todea Schema library](https://github.com/pocketgems/schema) to enfore Table schema:
+Define a new table like this, which uses the [Todea Schema library](https://github.com/pocketgems/schema) to enforce Table schema:
 ```javascript <!-- embed:./test/unit-test-doc.js:scope:Order -->
 class OrderWithNoPrice extends db.Model {
   static FIELDS = {

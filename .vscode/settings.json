@@ -26,8 +26,15 @@
         ]
     },
     "cSpell.words": [
+        "deepcopy",
+        "deepeq",
         "firestore",
+        "INDEBUGGER",
         "millis",
+        "retryable",
+        "rfdc",
+        "transactionally",
+        "uuidv",
         "vals"
     ]
 }

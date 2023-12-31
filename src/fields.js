@@ -77,7 +77,7 @@ class __BaseField extends __FieldInterface {
    */
   hasChangesToCommit (expectWrites = true) {
     // If a field is changed due to being initialized with the default
-    // value within a read-only transaction, the change shouldn't be commited.
+    // value within a read-only transaction, the change shouldn't be committed.
     // Otherwise, an error will occur when attempting to update in a
     // read-only transaction.
     if (this.__isForUpdate) {

@@ -618,7 +618,7 @@ class DBReadmeTest extends BaseTest {
     class StringKeyWithNullBytesExample extends db.Model {
       static KEY = { id: S.obj().prop('raw', S.str) }
     }
-    const strWithNullByte = 'I can contain \0, no pr\0blem!'
+    const strWithNullByte = 'I can contain \0, no problem!'
     await expect(db.Context.run(tx => {
       const row = tx.create(StringKeyWithNullBytesExample, {
         id: {

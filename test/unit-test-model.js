@@ -123,19 +123,19 @@ class SimpleExampleTest extends BaseTest {
   async testRegistration () {
     class TmpExample extends db.Model {}
     expect(!!TmpExample.__setupDone).toBe(false)
-    const registrator = {
+    const registrar = {
       done: false,
       registerModel: async () => {
         return new Promise(resolve => {
           setTimeout(() => {
-            registrator.done = true
+            registrar.done = true
             resolve()
           }, 0)
         })
       }
     }
-    await TmpExample.register(registrator)
-    expect(registrator.done).toBe(true)
+    await TmpExample.register(registrar)
+    expect(registrar.done).toBe(true)
     expect(TmpExample.__setupDone).toBe(true)
   }
 
@@ -1052,7 +1052,7 @@ class SnapshotTest extends BaseTest {
 }
 
 class UniqueKeyListTest extends BaseTest {
-  testDedup () {
+  testDeduplication () {
     const id = uuidv4()
     const keys = new db.UniqueKeyList(SimpleExample.key(id))
     keys.push(SimpleExample.key(id), SimpleExample.key(uuidv4()))

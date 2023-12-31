@@ -101,7 +101,7 @@ class CommonFieldTest extends BaseTest {
 
   testMutatedFlagWithDefault () {
     // Fields with default are mutated by default also
-    // so this field will be tranmitted to server on update
+    // so this field will be transmitted to server on update
     const field = db.__private.NumberField({ default: 1, optional: true })
     expect(field.mutated).toBe(true)
     // The change should be committed in a read-write tx
@@ -145,8 +145,8 @@ class CommonFieldTest extends BaseTest {
 
   testMutatedFlagDetectsNestedChanges () {
     // Array and Object fields detects nested mutation correctly
-    const deepobj = {}
-    const arr = [{}, {}, deepobj]
+    const deepObj = {}
+    const arr = [{}, {}, deepObj]
     const arrSchema = S.arr(S.obj({ prop: S.int.optional() }))
     const arrayField = db.__private.ArrayField({
       valIsFromDB: true,
@@ -163,7 +163,7 @@ class CommonFieldTest extends BaseTest {
     })
     expect(objectField.mutated).toBe(false)
 
-    deepobj.prop = 1
+    deepObj.prop = 1
     // Expected, since val from database should not change, so __mayHaveMutated
     // flag short-circuits the check
     expect(arrayField.mutated).toBe(false)
@@ -295,9 +295,9 @@ class FieldSchemaTest extends BaseTest {
   }
 
   testInvalidSchema () {
-    // Make sure schema compilation is checked at field initilization time
+    // Make sure schema compilation is checked at field initialization time
     expect(() => {
-      db.__private.NumberField({ schema: { oaisjdf: 'aosijdf' } })
+      db.__private.NumberField({ schema: { x: 'some_str' } })
     }).toThrow()
   }
 
@@ -436,9 +436,9 @@ class NumberFieldTest extends RepeatedFieldTest {
       const opts = isNew ? {} : { valIsFromDB: true, val: 0 }
       const field = db.__private.NumberField(opts)
       let expValue = 0
-      const nums = [1, 123, 321]
-      for (let i = 0; i < nums.length; i++) {
-        const n = nums[i]
+      const numbers = [1, 123, 321]
+      for (let i = 0; i < numbers.length; i++) {
+        const n = numbers[i]
         expValue += n
         field.incrementBy(n)
       }
