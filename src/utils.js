@@ -32,16 +32,6 @@ const SCHEMA_TYPE_TO_JS_TYPE_MAP = {
   string: String
 }
 
-/**
- * Returns a string which uniquely identifies an item.
- * @param {Model} modelCls the Model for the item
- * @param {string} _id the item's partition key
- */
-function makeItemString (modelCls, _id) {
-  const arr = [modelCls.tableName, _id]
-  return JSON.stringify(arr)
-}
-
 async function sleep (millis) {
   return new Promise((resolve, reject) => {
     setTimeout(resolve, millis)
@@ -79,7 +69,6 @@ function loadOptionDefaults (options, defaults) {
 module.exports = {
   checkUnexpectedOptions,
   loadOptionDefaults,
-  makeItemString,
   SCHEMA_TYPE_TO_JS_TYPE_MAP,
   sleep,
   validateValue

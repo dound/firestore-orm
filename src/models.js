@@ -14,7 +14,6 @@ const { __Field, SCHEMA_TYPE_TO_FIELD_CLASS_MAP } = require('./fields')
 const { Key } = require('./key')
 const {
   validateValue,
-  makeItemString,
   SCHEMA_TYPE_TO_JS_TYPE_MAP
 } = require('./utils')
 
@@ -485,14 +484,10 @@ class Model {
   }
 
   /**
-   * Must be the same as NonExistentModel.toString() because it is used as the
-   * unique identifier of an item for Objects and Sets.
+   * Returns the document path to this object.
    */
   toString () {
-    return makeItemString(
-      this.constructor,
-      this._id
-    )
+    return this.__key.docRef.path
   }
 
   toJSON () {
