@@ -304,6 +304,8 @@ class IDSchemaTest extends BaseTest {
       keyOrder, id + '\0', 'fake')).toThrow(msg)
     expect(() => CompoundIDExample.__decodeCompoundValue(
       keyOrder, '\0' + id, 'fake')).toThrow(msg)
+    expect(CompoundIDExample.__decodeCompoundValue(
+      keyOrder, id)).toEqual(compoundID)
 
     expect(() => CompoundIDExample.key('unexpected value')).toThrow(
       db.InvalidParameterError)
