@@ -2,7 +2,7 @@
 This library is used to interact with the Firestore NoSQL database. It provides
 high-level abstractions to structure data and prevent race conditions.
 
-[![JSDoc](https://img.shields.io/badge/Documentation-JSDoc-green.svg?logo=githubpages)](https://pocketgems.github.io/dynamodb)
+[![JSDoc](https://img.shields.io/badge/Documentation-JSDoc-green.svg?logo=githubpages)](https://dound.github.io/firestoredb)
 
 - [Core Concepts](#core-concepts)
   - [Minimal Example](#minimal-example)
