@@ -137,7 +137,7 @@ class KeyOnlyExample extends db.Model {
 }
 
 class KeyOnlyExample2 extends KeyOnlyExample {
-  static tableName = KeyOnlyExample.tableName // same
+  static collectionName = KeyOnlyExample.collectionName // same
 }
 
 class TransactionEdgeCaseTest extends BaseTest {

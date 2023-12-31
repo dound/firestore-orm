@@ -5,7 +5,7 @@ const S = require('@pocketgems/schema')
 const db = require('../src/default-db')
 
 db.verifyDoc = async (ModelCls, id, data) => {
-  const docRef = db.firestoreDB.collection(ModelCls.tableName).doc(id)
+  const docRef = db.firestoreDB.collection(ModelCls.collectionName).doc(id)
   const doc = await docRef.get()
   if (data) {
     expect(doc.exists).toBe(true)

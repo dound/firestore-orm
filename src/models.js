@@ -167,16 +167,17 @@ class Model {
     return this.__CACHED_KEY_ORDER
   }
 
-  static __validateTableName () {
-    const tableName = this.tableName
+  static __validateCollectionName () {
+    const collectionName = this.collectionName
     try {
-      assert.ok(!tableName.endsWith('Model'), 'not include "Model"')
-      assert.ok(!tableName.endsWith('Table'), 'not include "Table"')
-      assert.ok(tableName.indexOf('_') < 0, 'not include underscores')
-      assert.ok(tableName[0].match(/[A-Z]/), 'start with a capitalized letter')
-      assert.ok(tableName.match(/[a-zA-Z0-9]*/), 'only use letters or numbers')
+      assert.ok(!collectionName.endsWith('Model'), 'not include "Model"')
+      assert.ok(!collectionName.endsWith('Table'), 'not include "Table"')
+      assert.ok(!collectionName.endsWith('Collection'), 'not include "Collection"')
+      assert.ok(collectionName.indexOf('_') < 0, 'not include underscores')
+      assert.ok(collectionName[0].match(/[A-Z]/), 'start with a capitalized letter')
+      assert.ok(collectionName.match(/[a-zA-Z0-9]*/), 'only use letters or numbers')
     } catch (e) {
-      throw new Error(`Bad table name "${tableName}": it must ${e.message}`)
+      throw new Error(`Bad collection name "${collectionName}": it must ${e.message}`)
     }
   }
 
@@ -193,7 +194,7 @@ class Model {
     }
     this.__setupDone = true
 
-    this.__validateTableName()
+    this.__validateCollectionName()
     // _attrs maps the name of attributes that are visible to users of
     // this model. This is the combination of attributes (keys) defined by KEY
     // and FIELDS.
@@ -203,7 +204,7 @@ class Model {
     for (const [fieldName, schema] of Object.entries(this.schema.objectSchemas)) {
       const isKey = partitionKeys.has(fieldName)
       const finalFieldOpts = __Field.__validateFieldOptions(
-        this.tableName, isKey, fieldName, schema)
+        this.collectionName, isKey, fieldName, schema)
       this._attrs[fieldName] = finalFieldOpts
       if (isKey) {
         this.__KEY_COMPONENT_NAMES.add(fieldName)
@@ -262,13 +263,14 @@ class Model {
   }
 
   /**
-   * The table name this model is associated with. This is the model's class
-   * name. However, subclasses may choose to override this method and provide
-   * duplicated table name for co-existed models.
+   * This is the name of the collection this model is for. By default, the
+   * collection name is the model's class name. However, classes may choose
+   * to override this method and provide there own name (e.g., for co-existed
+   * models where multiple models have data in one collection).
    *
    * @type {String}
    */
-  static get tableName () {
+  static get collectionName () {
     return this.name
   }
 
@@ -338,7 +340,7 @@ class Model {
       if (!Object.keys(data).length) {
         throw new GenericModelError(
           'update did not provide any data to change',
-          this.constructor.tableName, this.__key.encodedKey)
+          this.constructor.collectionName, this.__key.encodedKey)
       }
       return ctx.__dbCtx.update(docRef, data)
     }
@@ -440,7 +442,7 @@ class Model {
   }
 
   /**
-   * Returns a Key identifying a unique row in this model's DB table.
+   * Returns a Key identifying a unique document in this model's DB collection.
    * @param {*} vals map of key component names to values; if there is
    *   only one partition key field (whose type is not object), then this MAY
    *   instead be just that field's value.
@@ -461,7 +463,7 @@ class Model {
   }
 
   /**
-   * Returns a Data fully describing a unique row in this model's DB table.
+   * Returns a Data fully describing a unique document in this model's DB collection.
    * @param {*} vals like the argument to key() but also includes non-key data
    * @returns {Data} a Data object for use with tx.create() or
    *   tx.get(..., { createIfMissing: true })

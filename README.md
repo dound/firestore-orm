@@ -6,7 +6,7 @@ high-level abstractions to structure data and prevent race conditions.
 
 - [Core Concepts](#core-concepts)
   - [Minimal Example](#minimal-example)
-  - [Tables](#tables)
+  - [Collections](#collections)
     - [Keys](#keys)
     - [Fields](#fields)
     - [Schema Enforcement](#schema-enforcement)
@@ -34,7 +34,7 @@ high-level abstractions to structure data and prevent race conditions.
 - [Niche Concepts](#niche-concepts)
   - [Key Encoding](#key-encoding)
   - [Nested Transactions are NOT Nested](#nested-transactions-are-not-nested)
-  - [Table Creation \& Persistence](#table-creation--persistence)
+  - [Collection Creation \& Persistence](#collection-creation--persistence)
   - [Repeated Reads](#repeated-reads)
   - [Key Collection](#key-collection)
 - [Library Collaborator's Guide](#library-collaborators-guide)
@@ -42,16 +42,17 @@ high-level abstractions to structure data and prevent race conditions.
   - [Transactions](#transactions-1)
 - [Appendix](#appendix)
   - [Useful Links](#useful-links)
+  - [Not Yet Implemented](#not-yet-implemented)
 
 
 # Core Concepts
-Data is organized into tables.
-A table consists of several _rows_ (also known as _items_), which
-is composed of one or more _Columns_ (also known as _Fields_).
-Each row is uniquely identified by a [_Key_](#keys) (more on this later).
+Data is organized into Firestore Collections (similar to what's often called
+tables in other databases). Each contains Firestore Documents (which we
+interchangeably call rows or items). Each document is uniquely identified by a
+string [_Key_](#keys).
 
 ## Minimal Example
-Define a new table like this, which uses the [Todea Schema library](https://github.com/pocketgems/schema) to enforce Table schema:
+Define a new collection like this, which uses the [Todea Schema library](https://github.com/pocketgems/schema) to enforce a schema:
 ```javascript <!-- embed:./test/unit-test-doc.js:scope:Order -->
 class OrderWithNoPrice extends db.Model {
   static FIELDS = {
@@ -80,7 +81,7 @@ Later, we can retrieve it from the database and modify it:
 ```
 
 
-## Tables
+## Collections
 
 ### Keys
 Each row is uniquely identified by a key. By default, the key is composed of a
@@ -128,7 +129,7 @@ value because this:
      with a given race ID and runner name (slow because this would involve a
      database query instead of a simple local computation!).
 
-Note: Keys are table-specific. Two different rows in different tables may have
+Note: Keys are collection-specific. Two different rows in different collections may have
 the same key.
 
 
@@ -208,7 +209,7 @@ A model's schema (i.e., the structure of its data) is enforced by this library
 — _NOT_ the underlying database! Firestore, like most NoSQL databases, is
 effectively schemaless (except for the key). This means each row may
 theoretically contain completely different data. This normally won't be the
-case because `db.Model` enforces a consistent schema on rows in a table.
+case because `db.Model` enforces a consistent schema on rows in a collection.
 
 However, it's important to understand that this schema is _only_ enforced by
 `db.Model` and not the underlying database. This means **changing the model
@@ -724,7 +725,7 @@ The inner transaction, if it commits, will commit first. If the outer
 transaction is retried, the inner transaction _will be run additional times_.
 
 
-## Table Creation & Persistence
+## Collection Creation & Persistence
 When the localhost server runs, it generates `config/resources.yml` based on
 the models you've defined (make sure to export them from your service!). On
 localhost, the data persists until you shut down the service. If you add new
@@ -738,8 +739,8 @@ means you should not create rows with a fixed ID as part of a unit test (use
 `uuidv4()` to get a random ID value so it won't clash with a future run of the
 unit tests.)
 
-Whenever a service is deployed to test or prod, any table which did not
-previously exist is created. _If a table is removed, its data will still be
+Whenever a service is deployed to test or prod, any collection which did not
+previously exist is created. _If a collection is removed, its data will still be
 retained._ It must be manually deleted if its data is no longer needed. This
 is a safety precaution to avoid data loss.
 
@@ -873,3 +874,8 @@ this library in `test/unit-test-doc.js` in the
   * https://googleapis.dev/nodejs/firestore/latest/index.html
 * Firestore [how-to guides](https://cloud.google.com/firestore/docs/how-to) -
     these are very partial and lack many details, but provide a good overview
+
+## Not Yet Implemented
+* Preconditions for updating, etc.
+* Indexes, filtering and scans
+* Nested collections

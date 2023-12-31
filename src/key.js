@@ -16,7 +16,7 @@ class Key {
 
   get docRef () {
     const db = Key.firestoreDB
-    return db.collection(this.Cls.tableName).doc(this.encodedKey)
+    return db.collection(this.Cls.collectionName).doc(this.encodedKey)
   }
 }
 

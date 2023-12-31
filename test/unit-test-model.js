@@ -142,11 +142,11 @@ class SimpleExampleTest extends BaseTest {
   testNamingConvention () {
     expect(() => {
       class SomeModel extends db.Model {}
-      SomeModel.__validateTableName() // eslint-disable-line
+      SomeModel.__validateCollectionName() // eslint-disable-line
     }).toThrow(/not include "Model"/)
     expect(() => {
       class SomeTable extends db.Model {}
-      SomeTable.__validateTableName() // eslint-disable-line
+      SomeTable.__validateCollectionName() // eslint-disable-line
     }).toThrow(/not include "Table"/)
   }
 
@@ -915,7 +915,7 @@ class OptDefaultExampleTest extends BaseTest {
     // for the test we do it in a new model (but SAME TABLE) because one-time
     // setup is already done for the other model)
     class OptDefaultExample2 extends db.Model {
-      static tableName = OptDefaultExample.name
+      static collectionName = OptDefaultExample.name
       static FIELDS = {
         ...OptDefaultExample.FIELDS,
         def2: S.int.default(8),

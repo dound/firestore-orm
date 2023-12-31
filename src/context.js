@@ -356,10 +356,10 @@ class Context {
 
       let ret = []
       if (this.options.cacheModels) {
-        const findModel = (tableName, id) => {
+        const findModel = (collectionName, id) => {
           for (let index = 0; index < keysOrDataToGet.length; index++) {
             const toGetKeyOrData = keysOrDataToGet[index]
-            if (tableName === toGetKeyOrData.Cls.tableName &&
+            if (collectionName === toGetKeyOrData.Cls.collectionName &&
               id === toGetKeyOrData.encodedKey) {
               return fetchedModels[index]
             }
@@ -367,7 +367,7 @@ class Context {
 
           for (const { key, model } of cachedModels) {
             // istanbul ignore else
-            if (tableName === key.Cls.tableName && id === key.encodedKey) {
+            if (collectionName === key.Cls.collectionName && id === key.encodedKey) {
               // undefined if previous get() found nothing
               // null if previously delete()
               // otherwise a model will be here
@@ -377,7 +377,7 @@ class Context {
         }
         for (const keyOrData of arr) {
           ret.push(findModel(
-            keyOrData.Cls.tableName,
+            keyOrData.Cls.collectionName,
             keyOrData.encodedKey
           ))
         }
@@ -459,7 +459,7 @@ class Context {
           const trackedModel = this.__trackedModelsList[trackedModelIdx]
           if (trackedModel === null) {
             // already asked to delete it
-            throw new DeletedTwiceError(key.Cls.tableName, key.encodedKey)
+            throw new DeletedTwiceError(key.Cls.collectionName, key.encodedKey)
           }
           this.__trackedModelsList[trackedModelIdx] = null
         } else {
@@ -615,7 +615,7 @@ class Context {
       }
       const before = model.getSnapshot({ initial: true, dbKeys: true })
       const after = model.getSnapshot({ initial: false, dbKeys: true })
-      const modelName = model.constructor.tableName
+      const modelName = model.constructor.collectionName
       const key = model.__key.encodedKey
       allBefore.push({ [modelName]: { _id: key, data: before } })
       allAfter.push({ [modelName]: { _id: key, data: after } })
@@ -645,7 +645,7 @@ function parseFirestoreError (err) {
     const docInfo = parseFirestoreErrorPath(err)
     if (docInfo) {
       if (err.code === 6) {
-        return new ModelAlreadyExistsError(docInfo.table, docInfo.id)
+        return new ModelAlreadyExistsError(docInfo.collection, docInfo.id)
       }
     }
   }
@@ -663,7 +663,7 @@ function parseFirestoreErrorPath (err) {
           .replace('name', ', "name"')
         const elt = JSON.parse(eltStr)
         if (elt.type && elt.name) {
-          return { table: elt.type, id: elt.name }
+          return { collection: elt.type, id: elt.name }
         }
         return elt
       } catch { /* no-op */ }

@@ -75,8 +75,8 @@ class TransactionLockTimeoutError extends TransactionFailedError {
  * @memberof Errors
  */
 class GenericModelError extends Error {
-  constructor (msg, table, _id) {
-    super(`${msg}: ${table} _id=${_id}`)
+  constructor (msg, collection, _id) {
+    super(`${msg}: ${collection} _id=${_id}`)
     this.name = this.constructor.name
     this.retryable = false
   }
@@ -88,8 +88,8 @@ class GenericModelError extends Error {
  * @memberof Errors
  */
 class ModelAlreadyExistsError extends GenericModelError {
-  constructor (table, _id) {
-    super('Tried to recreate an existing model', table, _id)
+  constructor (collection, _id) {
+    super('Tried to recreate an existing model', collection, _id)
   }
 }
 
@@ -99,7 +99,7 @@ class ModelAlreadyExistsError extends GenericModelError {
 class ModelTrackedTwiceError extends GenericModelError {
   constructor (key, trackedModel) {
     const msg = 'Model tracked twice'
-    super(msg, key.Cls.tableName, key.encodedKey)
+    super(msg, key.Cls.collectionName, key.encodedKey)
     this.newKey = key
     this.trackedModel = trackedModel
   }
@@ -110,9 +110,9 @@ class ModelTrackedTwiceError extends GenericModelError {
  * @memberof Errors
  */
 class DeletedTwiceError extends GenericModelError {
-  constructor (tableName, _id) {
+  constructor (collectionName, _id) {
     super('Tried to delete model twice in the same transaction',
-      tableName, _id)
+      collectionName, _id)
   }
 }
 
