@@ -541,34 +541,12 @@ class Context {
         err = firestoreError ?? originalErr
 
         // make sure EVERY error is retryable
-        const allErrors = err.allErrors || [err]
-        const errorMessages = []
-        for (let i = 0; i < allErrors.length; i++) {
-          const anErr = allErrors[i]
-          if (!this.constructor.__isRetryable(anErr)) {
-            errorMessages.push(`  ${i + 1}) ${anErr.message}`)
-          }
-        }
-        if (errorMessages.length) {
-          if (allErrors.length === 1) {
-            // if there was only one error, just rethrow it
-            const e = allErrors[0]
-            await this.__eventEmitter.emit(this.constructor.EVENTS.TX_FAILED,
-              e)
-            throw e
-          } else {
-            // if there were multiple errors, combine it into one error which
-            // summarizes all of the failures
-            const e = new TransactionFailedError(
-              ['Multiple Non-retryable Errors: ', ...errorMessages].join('\n'),
-              err)
-            await this.__eventEmitter.emit(this.constructor.EVENTS.TX_FAILED,
-              e)
-            throw e
-          }
+        if (!this.constructor.__isRetryable(err)) {
+          await this.__eventEmitter.emit(this.constructor.EVENTS.TX_FAILED,
+            err)
+          throw err
         } else {
-          console.log(`Context commit attempt ${tryCnt} failed with ` +
-            `error ${err}.`)
+          console.log(`ctx commit attempt ${tryCnt} failed with error ${err}`)
         }
       }
       if (tryCnt >= this.options.retries) {
