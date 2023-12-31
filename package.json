@@ -1,6 +1,6 @@
 {
   "name": "firestoredb",
-  "version": "0.1",
+  "version": "0.0.1",
   "description": "Firestore DB Library",
   "license": "Apache-2.0",
   "main": "src/default-db.js",
