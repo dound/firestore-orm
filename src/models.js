@@ -22,7 +22,7 @@ const {
  */
 class Model {
   /**
-   * Create a representation of a database Item. Should only be used by the
+   * Create a representation of a database Doc. Should only be used by the
    * library.
    */
   constructor (isNew, vals, isForUpdateAndMayBePartial = false, isSet = false) {
@@ -42,7 +42,7 @@ class Model {
     // __cached_attrs has a __Field subclass object for each non-key attribute.
     this.__attr_getters = {}
 
-    // pull out the Key for this item
+    // pull out the Key for this doc
     let keyComponents
     if (vals.__id !== undefined) {
       keyComponents = this.constructor.__decodeCompoundValue(
@@ -213,7 +213,7 @@ class Model {
   }
 
   /**
-   * Defines the key. Every item in the database is uniquely identified by its'
+   * Defines the key. Every doc in the database is uniquely identified by its'
    * key. The default key is a UUIDv4.
    *
    * A key can simply be some scalar value:
@@ -393,7 +393,7 @@ class Model {
         // the '\0' character cannot be stored in string fields. If you need to
         // store a string containing this character, then you need to store it
         // inside of an object field, e.g.,
-        // item.someObjField = { myString: '\0' } is okay
+        // doc.someObjField = { myString: '\0' } is okay
         if (givenValue.indexOf('\0') !== -1) {
           throw new InvalidFieldError(
             fieldName, 'cannot put null bytes in strings in compound values')

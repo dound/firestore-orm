@@ -32,7 +32,7 @@ const { Model } = require('./models')
 /**
  * Setup the Firestore library before returning symbols clients can use.
  *
- * @param {Object} [firestoreDB] client to interact with db items; from
+ * @param {Object} [firestoreDB] client to interact with db docs; from
  *   firebase/app::initializeApp
  * @returns {Object} Symbols that clients of this library can use.
  * @private

@@ -83,7 +83,7 @@ class GenericModelError extends Error {
 }
 
 /**
- * Thrown when a model is to be created, but DB already has an item with the
+ * Thrown when a model is to be created, but DB already has an doc with the
  * same key.
  * @memberof Errors
  */

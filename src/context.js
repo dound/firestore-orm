@@ -67,7 +67,7 @@ async function getWithArgs (args, callback) {
 /**
  * Context provides a context for interacting with Firestore. It will use a
  * transaction if requested (e.g., we're making changes OR we need consistent
- * reads across multiple items).
+ * reads across multiple docs).
  * @public
  */
 class Context {
@@ -233,11 +233,11 @@ class Context {
   /**
    * Get one document.
    *
-   * @param {Key} key A key for the item
-   * @param {GetParams} params Params for how to get the item
+   * @param {Key} key A key for the doc
+   * @param {GetParams} params Params for how to get the doc
    * @private
    */
-  async __getItem (key, params) {
+  async __getDoc (key, params) {
     const docRef = key.docRef
     const doc = await this.__dbCtx.get(docRef)
       .catch(
@@ -245,17 +245,17 @@ class Context {
         e => {
           throw new DBError('get', e)
         })
-    return this.__gotItem(key, params, doc)
+    return this.__gotDoc(key, params, doc)
   }
 
   /**
-   * Gets multiple items in a single call.
+   * Gets multiple docs in a single call.
    * @param {Array<Key>} keys A list of keys to get.
-   * @param {GetParams} params Params used to get items, all items will be
+   * @param {GetParams} params Params used to get docs, all docs will be
    *   fetched using the same params.
    * @private
    */
-  async __getItems (keys, params) {
+  async __getDocs (keys, params) {
     const docRefs = keys.map(key => key.docRef)
     const docs = await this.__dbCtx.getAll(...docRefs)
       .catch(
@@ -263,11 +263,11 @@ class Context {
         e => {
           throw new DBError('getAll', e)
         })
-    const promises = docs.map((doc, i) => this.__gotItem(keys[i], params, doc))
+    const promises = docs.map((doc, i) => this.__gotDoc(keys[i], params, doc))
     return Promise.all(promises)
   }
 
-  async __gotItem (key, params, doc) {
+  async __gotDoc (key, params, doc) {
     const isNew = !doc.exists
     if (!params.createIfMissing && isNew) {
       this.__watchForChangesToSave(undefined, key)
@@ -292,7 +292,7 @@ class Context {
    *
    * Must use a Key when createIfMissing is not true, and Data otherwise.
    *
-   * When a list of items is fetched:
+   * When a list of docs is fetched:
    *   Firestore getAll API is called.
    *     Batched fetches are more efficient than calling get with 1 key many
    *     times, since there is less HTTP request overhead.
@@ -339,16 +339,16 @@ class Context {
         }
       }
 
-      // fetch the data in bulk if more than 1 item was requested
+      // fetch the data in bulk if more than 1 doc was requested
       const fetchedModels = []
       if (keysOrDataToGet.length > 0) {
         if (argIsArray) {
           fetchedModels.push(
-            ...await this.__getItems(keysOrDataToGet, params))
+            ...await this.__getDocs(keysOrDataToGet, params))
         } else {
-          // just fetch the one item that was requested
+          // just fetch the one doc that was requested
           const key = keysOrDataToGet[0]
-          const fut = this.__getItem(key, params)
+          const fut = this.__getDoc(key, params)
           const newModel = await fut
           fetchedModels.push(newModel)
         }
@@ -392,10 +392,10 @@ class Context {
   }
 
   /**
-   * Updates an item without reading from DB. Fails if item is not in the db.
+   * Updates an doc without reading from DB. Fails if doc is not in the db.
    *
    * @param {CompositeID} key The key to update
-   * @param {Object} data Updated fields for the item
+   * @param {Object} data Updated fields for the doc
    */
   async updateWithoutRead (Cls, data) {
     const model = new Cls(false, data, true)
@@ -411,7 +411,7 @@ class Context {
   }
 
   /**
-   * Creates a model without accessing DB. Write will make sure the item does
+   * Creates a model without accessing DB. Write will make sure the doc does
    * not exist.
    *
    * @param {Model} Cls A Model class.
@@ -441,7 +441,7 @@ class Context {
    * Deletes model(s) from database.
    *
    * If a model is read from database, but it did not exist when deleting the
-   * item, an exception is raised.
+   * doc, an exception is raised.
    *
    * @param {List<Key|Model>} args Keys and Models
    */

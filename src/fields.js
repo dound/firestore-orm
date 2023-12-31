@@ -196,7 +196,7 @@ class __Field extends __BaseField {
     this.__value = undefined
     this.__readInitialValue = false // If get is called
     this.__written = false // If set is called
-    this.__default = opts.default // only used for new items!
+    this.__default = opts.default // only used for new docs!
 
     // determine whether to use the default value, or the given val
     let useDefault
@@ -366,15 +366,15 @@ class NumberField extends __Field {
 
     // figure out what value the diff will be added to
     if (this.__initialValue !== undefined) {
-      // this occurs when the field is on an existing item AND the item already
+      // this occurs when the field is on an existing doc AND the doc already
       // had a value for the field
       this.__base = this.__initialValue
     } else if (this.__value !== undefined) {
-      // this case occurs when the field is on a new item
+      // this case occurs when the field is on a new doc
       this.__base = this.__value
     } else {
-      // this case occurs if the field is not currently present on the item;
-      // in this case increment cannot be used to update the item
+      // this case occurs if the field is not currently present on the doc;
+      // in this case increment cannot be used to update the doc
       this.__base = undefined
     }
   }

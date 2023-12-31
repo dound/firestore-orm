@@ -344,7 +344,7 @@ class DBReadmeTest extends BaseTest {
       expect(liftStats).toEqual(undefined)
     })
 
-    // the items were never created
+    // the docs were never created
     await db.Context.run(async tx => {
       const [skierStats, liftStats] = await tx.get([
         SkierStats.key(resort),

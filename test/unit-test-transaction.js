@@ -168,7 +168,7 @@ class TransactionGetTest extends QuickTransactionTest {
     await txGet(this.modelName)
   }
 
-  async testGetItemTwice () {
+  async testGetDocTwice () {
     await db.Context.run(async (tx) => {
       await tx.get(TransactionExample, 'a',
         { createIfMissing: true })
@@ -483,15 +483,15 @@ class TransactionWriteTest extends QuickTransactionTest {
         { id, field1: 4, objField: { a: { a: 1 } } })
     })
     await db.Context.run(async tx => {
-      const item = await tx.get(TransactionExample, id)
-      expect(item.id).toBe(id)
-      expect(item.field1).toBe(4)
-      expect(item.field2).toBe(undefined)
-      expect(item.objField).toEqual({ a: { a: 1 } })
+      const doc = await tx.get(TransactionExample, id)
+      expect(doc.id).toBe(id)
+      expect(doc.field1).toBe(4)
+      expect(doc.field2).toBe(undefined)
+      expect(doc.objField).toEqual({ a: { a: 1 } })
     })
   }
 
-  async testUpdateItemNonExisting () {
+  async testUpdateDocNonExisting () {
     const id = 'nonexistent' + uuidv4()
     let fut = db.Context.run(async tx => {
       return tx.updateWithoutRead(TransactionExample, { id, field1: 2 })
@@ -527,7 +527,7 @@ class TransactionWriteTest extends QuickTransactionTest {
   }
 
   async testUpdateNoReturn () {
-    // UpdateItem should not return the model for further modifications
+    // UpdateDoc should not return the model for further modifications
     await db.Context.run(async tx => {
       const ret = await tx.updateWithoutRead(TransactionExample,
         { id: this.modelName, field1: 2 })
@@ -535,7 +535,7 @@ class TransactionWriteTest extends QuickTransactionTest {
     })
   }
 
-  async testUpdateItem () {
+  async testUpdateDoc () {
     const data = TransactionExample.data(this.modelName)
     const origModel = await txGet(data)
     const newVal = Math.floor(Math.random() * 9999999)
@@ -743,9 +743,9 @@ class TransactionWriteTest extends QuickTransactionTest {
 
   // Verify model cannot be tracked more than once inside a tx.
   async testDuplicateTracking () {
-    // verify create then get on non existing item fails
+    // verify create then get on non existing doc fails
     const id = uuidv4()
-    await txGet(id) // make the item first
+    await txGet(id) // make the doc first
     const future = db.Context.run(async tx => {
       tx.createOrOverwrite(TransactionExample, { id, field1: 1 })
       await tx.get(TransactionExample, { id })
@@ -867,7 +867,7 @@ class TransactionRetryTest extends QuickTransactionTest {
     err.details = 'fake firestore lock error'
     await this.expectRetries(err, 1, 2)
 
-    // error 6 (create failed because item already exists) should not be retried
+    // error 6 (create failed because doc already exists) should not be retried
     err.code = 6
     err.details = 'fake firestore error'
     // this error requires an Element
@@ -951,7 +951,7 @@ class TransactionDeleteTest extends QuickTransactionTest {
     const m = await txGet(uuidv4())
     const key = TransactionExample.key({ id: m.id })
     const result = await db.Context.run(async tx => {
-      // multiple items goes through TransactWrite
+      // multiple docs goes through TransactWrite
       await tx.get(TransactionExample, uuidv4(), { createIfMissing: true })
       const model = await tx.get(key)
       await tx.delete(model)
@@ -962,7 +962,7 @@ class TransactionDeleteTest extends QuickTransactionTest {
   }
 
   async testDeleteNonExisting () {
-    // Deleting an item that we don't know if exists should silently pass
+    // Deleting an doc that we don't know if exists should silently pass
     const data = TransactionExample.data({ id: uuidv4() })
     await db.Context.run(async tx => {
       await tx.delete(data)
@@ -1012,7 +1012,7 @@ class TransactionCacheModelsTest extends BaseTest {
     const id = uuidv4()
     const ret = await db.Context.run({ cacheModels: true }, async tx => {
       const m1 = await tx.get(TransactionExample, id)
-      // Repeatedly getting a missing item should also work
+      // Repeatedly getting a missing doc should also work
       const m2 = await tx.get(TransactionExample, id)
       const m3 = await tx.get(TransactionExample, id, { createIfMissing: true })
       // this will get the created model from m3
