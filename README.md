@@ -20,7 +20,7 @@ high-level abstractions to structure data and prevent race conditions.
     - [Warning: Side Effects](#warning-side-effects)
     - [Per-request transaction](#per-request-transaction)
   - [Operations](#operations)
-    - [Addressing Rows](#addressing-rows)
+    - [Addressing Documents](#addressing-documents)
     - [Create](#create)
     - [Read](#read)
       - [Create if Missing](#create-if-missing)
@@ -47,9 +47,9 @@ high-level abstractions to structure data and prevent race conditions.
 
 # Core Concepts
 Data is organized into Firestore Collections (similar to what's often called
-tables in other databases). Each contains Firestore Documents (which we
-interchangeably call rows or items). Each document is uniquely identified by a
-string [_Key_](#keys).
+tables in other databases). Each contains Firestore Documents (similar to rows
+in other databases). Each document ("doc") is uniquely identified by a string
+[_Key_](#keys).
 
 ## Minimal Example
 Define a new collection like this, which uses the [Todea Schema library](https://github.com/pocketgems/schema) to enforce a schema:
@@ -62,7 +62,7 @@ class OrderWithNoPrice extends db.Model {
 }
 ```
 
-Then we can create a new row:
+Then we can create a new doc:
 ```javascript
 const id = uuidv4()
 tx.create(Order, { id, product: 'coffee', quantity: 1 })
@@ -84,10 +84,10 @@ Later, we can retrieve it from the database and modify it:
 ## Collections
 
 ### Keys
-Each row is uniquely identified by a key. By default, the key is composed of a
+Each doc is uniquely identified by a key. By default, the key is composed of a
 single field named `id` which has the format of a UUIDv4 string (e.g.,
 `"c40ef065-4034-4be8-8a1d-0959695b213e"`) typically produced by calling
-`uuidv4()`, as shown in the minimal example above. A row's key cannot be
+`uuidv4()`, as shown in the minimal example above. A doc's key cannot be
 changed.
 
 You can override the default and define your key to be composed of one _or
@@ -129,12 +129,12 @@ value because this:
      with a given race ID and runner name (slow because this would involve a
      database query instead of a simple local computation!).
 
-Note: Keys are collection-specific. Two different rows in different collections may have
+Note: Keys are collection-specific. Two different docs in different collections may have
 the same key.
 
 
 ### Fields
-Fields are pieces of data attached to an item. They are defined similar to
+Fields are pieces of data attached to a doc. They are defined similar to
 `KEY` -- fields can be composed of one _or more_ fields with arbitrary
 [Todea schema](https://github.com/pocketgems/schema)s (`S`) :
 ```javascript <!-- embed:./test/unit-test-doc.js:scope:ModelWithFields -->
@@ -150,19 +150,19 @@ class ModelWithFieldsExample extends db.Model {
 * Field names are serialized and stored in the database.
   Avoid having fields with long verbose names, specially for nested ones.
 * If you change the db schema, existing data isn't changed.
-  That includes rows with now missing field names. [Schema Enforcement](#schema-enforcement)
+  That includes docs with now missing field names. [Schema Enforcement](#schema-enforcement)
 
 Fields can be configured to be optional, immutable and/or have default values:
  * `optional()` - unless a field is marked as optional, a value must be
    provided (i.e., it cannot be omitted or set to `undefined`)
  * `readOnly()` - if a field is marked as read only, it cannot be changed once
-   the row has been created
+   the doc has been created
  * `default()` - the default value for a field
     * This value gets deep copied so you can safely use non-primitive type like
       an object as a default value.
     * The default value is assigned to a field when:
-       * A row is created and no value is specified for the value.
-       * A row is fetched and is is missing the specified field _AND_ the
+       * A doc is created and no value is specified for the value.
+       * A doc is fetched and is is missing the specified field _AND_ the
          field is required.
     * The default value is _not_ assigned to an optional field that is missing
       when it is fetched from the database.
@@ -179,27 +179,27 @@ class ComplexFieldsExample extends db.Model {
 ```
 ```javascript <!-- embed:./test/unit-test-doc.js:section:example1122start:example1122end -->
       // can omit the optional field
-      const row = tx.create(ComplexFieldsExample, {
+      const doc = tx.create(ComplexFieldsExample, {
         id: uuidv4(),
         aNonNegInt: 0,
         immutableInt: 3
       })
-      expect(row.aNonNegInt).toBe(0)
+      expect(doc.aNonNegInt).toBe(0)
       // omitted optional field => undefined
-      expect(row.anOptBool).toBe(undefined)
-      expect(row.immutableInt).toBe(3)
+      expect(doc.anOptBool).toBe(undefined)
+      expect(doc.immutableInt).toBe(3)
 
       // can override the default value
-      const row2 = tx.create(ComplexFieldsExample, {
+      const doc2 = tx.create(ComplexFieldsExample, {
         id: uuidv4(),
         aNonNegInt: 1,
         anOptBool: true
       })
-      expect(row2.aNonNegInt).toBe(1)
-      expect(row2.anOptBool).toBe(true)
-      expect(row2.immutableInt).toBe(5) // the default value
+      expect(doc2.aNonNegInt).toBe(1)
+      expect(doc2.anOptBool).toBe(true)
+      expect(doc2.immutableInt).toBe(5) // the default value
       // can't change read only fields:
-      expect(() => { row2.immutableInt = 3 }).toThrow(
+      expect(() => { doc2.immutableInt = 3 }).toThrow(
         'immutableInt is immutable so value cannot be changed')
 ```
 
@@ -207,14 +207,14 @@ class ComplexFieldsExample extends db.Model {
 ### Schema Enforcement
 A model's schema (i.e., the structure of its data) is enforced by this library
 — _NOT_ the underlying database! Firestore, like most NoSQL databases, is
-effectively schemaless (except for the key). This means each row may
+effectively schemaless (except for the key). This means each doc may
 theoretically contain completely different data. This normally won't be the
-case because `db.Model` enforces a consistent schema on rows in a collection.
+case because `db.Model` enforces a consistent schema on docs in a collection.
 
 However, it's important to understand that this schema is _only_ enforced by
 `db.Model` and not the underlying database. This means **changing the model
 does not change any underlying data** in the database. For example, if we make
-a previously optional field required, old rows which omitted the value will
+a previously optional field required, old docs which omitted the value will
 still be missing the value.
 
 The schema is checked as follows:
@@ -222,7 +222,7 @@ The schema is checked as follows:
      reference (e.g., an object or array), then changing a value inside the
      reference does _not_ trigger a validation check.
 ```javascript
-         // fields are checked immediately when creating a new row; this throws
+         // fields are checked immediately when creating a new doc; this throws
          // S.ValidationError because someInt should be an integer
          const data = {
            id: uuidv4(),
@@ -294,7 +294,7 @@ expect(order.totalPrice(0.1)).toBeCloseTo(440)
 ## Transactions
 A transaction is a function which contains logic and database operations. A
 transaction guarantees that all _database_ side effects (e.g., updating a
-row) execute in an all-or-nothing manner, providing both
+doc) execute in an all-or-nothing manner, providing both
 [ACID](#acid-properties) properties.
 
 
@@ -429,11 +429,11 @@ effects may occur even if the transaction doesn't commit. They could even occur
 multiple times (if your transaction retries).
 ```javascript
   await db.Context.run(async tx => {
-    const row = await tx.get(...)
-    row.someInt += 1
-    if (row.someInt > 10) {
+    const doc = await tx.get(...)
+    doc.someInt += 1
+    if (doc.someInt > 10) {
       // making an HTTP request is a side effect!
-      await got('https://example.com/theRowHassomeIntBiggerThan10')
+      await got('https://example.com/gotSomeIntBiggerThan10')
     }
   })
 ```
@@ -454,8 +454,8 @@ name the transaction object `tx` in code. This section discusses the operations
 supported by `tx`.
 
 
-### Addressing Rows
-Database operations always occur on a particular row. The canonical way to identify a particular row is:
+### Addressing Documents
+Database operations always occur on a particular doc. The canonical way to identify a particular doc is:
 ```javascript
 MyModel.key({ /* a map of key component names to their values */ })
 Order.key({ id: uuidv4() })
@@ -482,13 +482,13 @@ tx.get(RaceResult, { raceID, runnerName })
 
 
 ### Create
-`tx.create()` instantiates a new row in local memory. This method is a local,
-**synchronous** method (no network traffic is generated). If a row with the
+`tx.create()` instantiates a new doc in local memory. This method is a local,
+**synchronous** method (no network traffic is generated). If a doc with the
 same key already exists, a `db.ModelAlreadyExistsError` is thrown when the
-transaction attempts to commit (without retries, as we don't expect rows to be
+transaction attempts to commit (without retries, as we don't expect docs to be
 deleted).
 
-To create a row, you need to supply the model (the type of data you're
+To create a doc, you need to supply the model (the type of data you're
 creating) and a map of its initial values:
 ```javascript
 tx.create(Order, { id, product: 'coffee', quantity: 1 })
@@ -510,23 +510,23 @@ const order = await orderPromise // block until the data has been retrieved
 
 
 #### Create if Missing
-If the row does not exist in the database, then by default the returned value
+If the doc does not exist in the database, then by default the returned value
 will be `undefined`. You may ask for it to instead be created if it does not
-exist. To do this, you need to supply not only the row's key, but also the
+exist. To do this, you need to supply not only the doc's key, but also the
 data you want it to have _if_ it does not yet exist:
 ```javascript
 const dataIfOrderIsNew = { id, product: 'coffee', quantity: 1 }
 const order = await tx.get(Order, dataIfOrderIsNew, { createIfMissing: true })
-if (order.isNew) { // you can check if the row already existed or not
+if (order.isNew) { // you can check if the doc already existed or not
   // ...
 }
 ```
 
 The `isNew` property is set when the model is instantiated (after receiving the
 database's response to our data request). When the transaction commits, it will
-ensure that the row is still being created if `isNew=true` (i.e., the row
+ensure that the doc is still being created if `isNew=true` (i.e., the doc
 wasn't created by someone else in the meantime) or still exists if
-`isNew=false` (i.e., the row hasn't been deleted in the meantime).
+`isNew=false` (i.e., the doc hasn't been deleted in the meantime).
 
 
 #### Read Consistency
@@ -558,7 +558,7 @@ const [order1, order2, raceResult] = await tx.get([
   (see [race conditions](#warning-race-conditions) for more about this).
 
 ### Write
-To modify data in the database, simply modify fields on a row created by
+To modify data in the database, simply modify fields on a doc created by
 `tx.create()` or fetched by `tx.get()`. When the transaction commits, all
 changes will be written to the database automatically.
 
@@ -566,26 +566,26 @@ For improved performance, data can be updated without being read from database
 first. See details in [blind writes](#blind-writes).
 
 ### Delete
-Rows can be deleted from the database via `tx.delete()`. The delete method
+docs can be deleted from the database via `tx.delete()`. The delete method
 accepts models or keys as parameters. For example,
 `tx.delete(model1, key1, model2, ...keys, key2)`.
 
 For models that were read from server via `tx.get()`, if the model turns out to
 be missing on server when the transaction commits, an exception is thrown.
-Otherwise, deletion on missing rows will be treated as noop.
+Otherwise, deletion on missing docs will be treated as noop.
 
 ## Performance
 ### Blind Writes
-Blind updates write a row to the DB without reading it first. This is useful
+Blind updates write a doc to the DB without reading it first. This is useful
 when we wish to update them without the overhead of an unnecessary read (in
 theory, the update can have preconditions but this isn't supported yet... just
 do a read in that case to verify them):
 ```javascript
-// this updates the specified order row to quantity=2
+// this updates the specified order doc to quantity=2
 tx.updateWithoutRead(Order, { id, quantity: 2 })
 ```
 
-Similarly, rows can be blindly created or overwritten with the
+Similarly, docs can be blindly created or overwritten with the
 `createOrOverwrite` method. This is useful when we don't care about the
 previous value (if any). For example, maybe we're tracking whether a customer
 has used a particular feature or not. When they use it, we may just want to
@@ -601,7 +601,7 @@ blindly record it:
       static FIELDS = { epoch: S.int }
     }
     await db.Context.run(async tx => {
-      // Overwrite the row regardless of the content
+      // Overwrite the doc regardless of the content
       const ret = tx.createOrOverwrite(LastUsedFeature,
         { user: 'Bob', feature: 'refer a friend', epoch: 234 })
       expect(ret).not.toBe(undefined) // should return a modal, like create()
@@ -609,7 +609,7 @@ blindly record it:
 
     await db.Context.run(tx => {
       tx.createOrOverwrite(LastUsedFeature,
-        // this contains the new value(s) and the row's key; if a value is
+        // this contains the new value(s) and the doc's key; if a value is
         // undefined then the field will be deleted (it must be optional for
         // this to be allowed)
         { user: 'Bob', feature: 'refer a friend', epoch: 123 },
@@ -619,9 +619,9 @@ blindly record it:
       )
     })
     await db.Context.run(async tx => {
-      const row = await tx.get(LastUsedFeature,
+      const doc = await tx.get(LastUsedFeature,
         { user: 'Bob', feature: 'refer a friend' })
-      expect(row.epoch).toBe(123)
+      expect(doc.epoch).toBe(123)
     })
   }
 ```
@@ -688,8 +688,8 @@ which don't need to be encoded like that). Finally, we concatenate these values
 (in order of their keys) and separate them with null characters. An encoded key
 would look like this:
 ```javascript
-const row = tx.create(RaceResult, { raceID: 123, runnerName: 'Joe' })
-expect(row._id).toBe('123\0Joe')
+const doc = tx.create(RaceResult, { raceID: 123, runnerName: 'Joe' })
+expect(doc._id).toBe('123\0Joe')
 
 // the encoded key is also contained in the output of Model.key():
 const key = RaceResult.key({ runnerName: 'Mel', raceID: 123 })
@@ -735,7 +735,7 @@ restart your service to incorporate the changes.
 Along the same lines, keep in mind that the localhost database is _not_ cleared
 in between test runs. Any data added to the localhost database will remain
 until the service is restarted. This can help you debug issues, but it also
-means you should not create rows with a fixed ID as part of a unit test (use
+means you should not create docs with a fixed ID as part of a unit test (use
 `uuidv4()` to get a random ID value so it won't clash with a future run of the
 unit tests.)
 
@@ -750,7 +750,7 @@ key structure — it will probably cause serious problems.
 
 
 ## Repeated Reads
-By default, reading a row twice in a single transaction is treated as an
+By default, reading a doc twice in a single transaction is treated as an
 exception.
 ```javascript
 await db.Context.run(async tx => {
@@ -759,10 +759,10 @@ await db.Context.run(async tx => {
 })
 ```
 
-In some occasions, we may need to allow the same row to be read more than
+In some occasions, we may need to allow the same doc to be read more than
 once. For example, a transaction may be handling a batch of operations (action
 pattern with batching), where individual operation might read and update the
-same row.
+same doc.
 ```javascript
 const operation = async (tx) => {
   const model = await tx.get(SomeModel, "some id")
@@ -779,8 +779,8 @@ await db.Context.run(async tx => {
 })
 ```
 
-To allow reading the same row more than once, a `cacheModels` option can be
-toggled on. In this mode, when a row is first read, it is cached by the
+To allow reading the same doc more than once, a `cacheModels` option can be
+toggled on. In this mode, when a doc is first read, it is cached by the
 transaction, and the transaction will return the cached model for any
 subsequent reads.
 ```javascript
@@ -792,7 +792,7 @@ await db.Context.run({ cacheModels: true },async tx => {
 })
 ```
 
-Any modifications made to the cached row will be stored along with the row,
+Any modifications made to the cached doc will be stored along with the doc,
 so subsequent reads will see the previous updates.
  ```javascript
 await db.Context.run({ cacheModels: true },async tx => {
@@ -805,7 +805,7 @@ await db.Context.run({ cacheModels: true },async tx => {
 ```
 
 Repeated reads can be enabled during a transaction because transactions track
-all referenced rows. Call `enableModelCache` to turn it on.
+all referenced docs. Call `enableModelCache` to turn it on.
 ```javascript
 await db.Context.run(async tx => {
   ...
@@ -814,8 +814,8 @@ await db.Context.run(async tx => {
 })
 ```
 
-If [an operation other than read](#operations) was done on the row (e.g.
-delete, or create, etc.), a subsequent attempt to read the row will result in
+If [an operation other than read](#operations) was done on the doc (e.g.
+delete, or create, etc.), a subsequent attempt to read the doc will result in
 an exception regardless of the cacheModels flag value.
 
 ## Key Collection
@@ -827,7 +827,7 @@ provides an `Array` like interface to simplify the deduplication process.
 ```javascript
 const keys = new db.UniqueKeyList(MyModel.key('123'))
 keys.push(MyModel.key('123'), ...[MyModel.key('123')])
-const rows = await tx.get(keys)
+const docs = await tx.get(keys)
 ```
 
 # Library Collaborator's Guide

@@ -116,33 +116,33 @@ class DBReadmeTest extends BaseTest {
       const givenImmInt = values.immutableInt
       const expImmutableInt = (givenImmInt === undefined) ? 5 : givenImmInt
 
-      function checkRow (row) {
-        expect(row.id).toBe(id)
-        expect(row.anOptBool).toBe(expBool)
-        expect(row.aNonNegInt).toBe(expNNInt)
-        expect(row.immutableInt).toBe(expImmutableInt)
+      function checkDoc (doc) {
+        expect(doc.id).toBe(id)
+        expect(doc.anOptBool).toBe(expBool)
+        expect(doc.aNonNegInt).toBe(expNNInt)
+        expect(doc.immutableInt).toBe(expImmutableInt)
       }
 
       const ret = db.Context.run(async tx => {
         const data = { id, ...values }
-        let row
+        let doc
         if (how === 'create') {
-          row = tx.create(ComplexFieldsExample, data)
+          doc = tx.create(ComplexFieldsExample, data)
         } else {
-          row = await tx.get(
+          doc = await tx.get(
             ComplexFieldsExample, data, { createIfMissing: true })
-          expect(row.isNew).toBe(true)
+          expect(doc.isNew).toBe(true)
         }
-        checkRow(row)
+        checkDoc(doc)
       })
       if (expErr) {
         await expect(ret).rejects.toThrow(expErr)
       } else {
         await ret
         await db.Context.run(async tx => {
-          const row = await tx.get(ComplexFieldsExample, id)
-          checkRow(row)
-          expect(() => { row.immutableInt = 5 }).toThrow(/is immutable/)
+          const doc = await tx.get(ComplexFieldsExample, id)
+          checkDoc(doc)
+          expect(() => { doc.immutableInt = 5 }).toThrow(/is immutable/)
         })
       }
     }
@@ -175,27 +175,27 @@ class DBReadmeTest extends BaseTest {
     await db.Context.run(async tx => {
       // example1122start
       // can omit the optional field
-      const row = tx.create(ComplexFieldsExample, {
+      const doc = tx.create(ComplexFieldsExample, {
         id: uuidv4(),
         aNonNegInt: 0,
         immutableInt: 3
       })
-      expect(row.aNonNegInt).toBe(0)
+      expect(doc.aNonNegInt).toBe(0)
       // omitted optional field => undefined
-      expect(row.anOptBool).toBe(undefined)
-      expect(row.immutableInt).toBe(3)
+      expect(doc.anOptBool).toBe(undefined)
+      expect(doc.immutableInt).toBe(3)
 
       // can override the default value
-      const row2 = tx.create(ComplexFieldsExample, {
+      const doc2 = tx.create(ComplexFieldsExample, {
         id: uuidv4(),
         aNonNegInt: 1,
         anOptBool: true
       })
-      expect(row2.aNonNegInt).toBe(1)
-      expect(row2.anOptBool).toBe(true)
-      expect(row2.immutableInt).toBe(5) // the default value
+      expect(doc2.aNonNegInt).toBe(1)
+      expect(doc2.anOptBool).toBe(true)
+      expect(doc2.immutableInt).toBe(5) // the default value
       // can't change read only fields:
-      expect(() => { row2.immutableInt = 3 }).toThrow(
+      expect(() => { doc2.immutableInt = 3 }).toThrow(
         'immutableInt is immutable so value cannot be changed')
       // example1122end
     })
@@ -204,7 +204,7 @@ class DBReadmeTest extends BaseTest {
   async testSchemaEnforcement () {
     const id = uuidv4()
     await db.Context.run(tx => {
-      // fields are checked immediately when creating a new row; this throws
+      // fields are checked immediately when creating a new doc; this throws
       // db.InvalidFieldError because someInt should be an integer
       const data = {
         id,
@@ -233,16 +233,16 @@ class DBReadmeTest extends BaseTest {
     })
 
     const badTx = db.Context.run(async tx => {
-      const row = await tx.get(ModelWithFieldsExample, id)
-      expect(row.someInt).toBe(1)
-      expect(row.someBool).toBe(true)
-      expect(row.someObj).toEqual({ arr: ['ok'] })
+      const doc = await tx.get(ModelWithFieldsExample, id)
+      expect(doc.someInt).toBe(1)
+      expect(doc.someBool).toBe(true)
+      expect(doc.someObj).toEqual({ arr: ['ok'] })
       // changes within a non-primitive type aren't detected or validated until
       // we try to write the change so this next line won't throw!
-      row.someObj.arr.push(5)
+      doc.someObj.arr.push(5)
 
       expect(() => {
-        row.getField('someObj').validate()
+        doc.getField('someObj').validate()
       }).toThrow(S.ValidationError)
     })
     await expect(badTx).rejects.toThrow(S.ValidationError)
@@ -378,7 +378,7 @@ class DBReadmeTest extends BaseTest {
     })
   }
 
-  async testAddressingRows () {
+  async testAddressingDocs () {
     const id = uuidv4()
     expect(OrderWithNoPrice.key({ id }).keyComponents.id).toBe(id)
     expect(OrderWithNoPrice.key(id).keyComponents.id).toBe(id)
@@ -388,10 +388,10 @@ class DBReadmeTest extends BaseTest {
     })
     async function check (...args) {
       await db.Context.run(async tx => {
-        const row = await tx.get(...args)
-        expect(row.id).toBe(id)
-        expect(row.product).toBe('coffee')
-        expect(row.quantity).toBe(1)
+        const doc = await tx.get(...args)
+        expect(doc.id).toBe(id)
+        expect(doc.product).toBe('coffee')
+        expect(doc.quantity).toBe(1)
       })
     }
     await check(OrderWithNoPrice.key(id))
@@ -400,17 +400,17 @@ class DBReadmeTest extends BaseTest {
     await check(OrderWithNoPrice, { id })
   }
 
-  async testAddressingCompoundRows () {
+  async testAddressingCompoundDocs () {
     const raceID = 20140421
     const runnerName = 'Meb'
     const kc = RaceResult.key({ raceID, runnerName }).keyComponents
     expect(kc.raceID).toBe(raceID)
     expect(kc.runnerName).toBe(runnerName)
     await db.Context.run(async tx => {
-      const row = await tx.get(RaceResult, { raceID, runnerName },
+      const doc = await tx.get(RaceResult, { raceID, runnerName },
         { createIfMissing: true })
-      expect(row.raceID).toBe(raceID)
-      expect(row.runnerName).toBe(runnerName)
+      expect(doc.raceID).toBe(raceID)
+      expect(doc.runnerName).toBe(runnerName)
     })
   }
 
@@ -431,11 +431,11 @@ class DBReadmeTest extends BaseTest {
   async testRead () {
     const data = { id: uuidv4(), product: 'coffee', quantity: 1 }
     await db.Context.run(tx => tx.create(OrderWithNoPrice, data))
-    const row = await db.Context.run(async tx => tx.get(
+    const doc = await db.Context.run(async tx => tx.get(
       OrderWithNoPrice, data.id))
-    expect(row.id).toEqual(data.id)
-    expect(row.product).toEqual(data.product)
-    expect(row.quantity).toEqual(data.quantity)
+    expect(doc.id).toEqual(data.id)
+    expect(doc.product).toEqual(data.product)
+    expect(doc.quantity).toEqual(data.quantity)
   }
 
   async testBatchRead () {
@@ -500,7 +500,7 @@ class DBReadmeTest extends BaseTest {
       static FIELDS = { epoch: S.int }
     }
     await db.Context.run(async tx => {
-      // Overwrite the row regardless of the content
+      // Overwrite the doc regardless of the content
       const ret = tx.createOrOverwrite(LastUsedFeature,
         { user: 'Bob', feature: 'refer a friend', epoch: 234 })
       expect(ret).not.toBe(undefined) // should return a modal, like create()
@@ -508,7 +508,7 @@ class DBReadmeTest extends BaseTest {
 
     await db.Context.run(tx => {
       tx.createOrOverwrite(LastUsedFeature,
-        // this contains the new value(s) and the row's key; if a value is
+        // this contains the new value(s) and the doc's key; if a value is
         // undefined then the field will be deleted (it must be optional for
         // this to be allowed)
         { user: 'Bob', feature: 'refer a friend', epoch: 123 },
@@ -518,9 +518,9 @@ class DBReadmeTest extends BaseTest {
       )
     })
     await db.Context.run(async tx => {
-      const row = await tx.get(LastUsedFeature,
+      const doc = await tx.get(LastUsedFeature,
         { user: 'Bob', feature: 'refer a friend' })
-      expect(row.epoch).toBe(123)
+      expect(doc.epoch).toBe(123)
     })
   }
 
@@ -576,7 +576,7 @@ class DBReadmeTest extends BaseTest {
     })
   }
 
-  async testUpdatingRowWithoutAOL () {
+  async testUpdatingDocWithoutAOL () {
     const id = uuidv4()
     await db.Context.run(async tx => {
       tx.create(OrderWithNoPrice, { id, product: 'coffee', quantity: 8 })
@@ -606,8 +606,8 @@ class DBReadmeTest extends BaseTest {
   async testKeyEncoding () {
     const err = new Error('do not want to save this')
     await expect(db.Context.run(tx => {
-      const row = tx.create(RaceResult, { raceID: 123, runnerName: 'Joe' })
-      expect(row._id).toBe('123\0Joe')
+      const doc = tx.create(RaceResult, { raceID: 123, runnerName: 'Joe' })
+      expect(doc._id).toBe('123\0Joe')
       throw err // don't want to save this to the test db
     })).rejects.toThrow(err)
 
@@ -620,12 +620,12 @@ class DBReadmeTest extends BaseTest {
     }
     const strWithNullByte = 'I can contain \0, no problem!'
     await expect(db.Context.run(tx => {
-      const row = tx.create(StringKeyWithNullBytesExample, {
+      const doc = tx.create(StringKeyWithNullBytesExample, {
         id: {
           raw: strWithNullByte
         }
       })
-      expect(row.id.raw).toBe(strWithNullByte)
+      expect(doc.id.raw).toBe(strWithNullByte)
       throw err // don't want to save this to the test db
     })).rejects.toThrow(err)
   }
