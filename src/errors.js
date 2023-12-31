@@ -106,6 +106,17 @@ class ModelTrackedTwiceError extends GenericModelError {
 }
 
 /**
+ * Thrown when a model is being deleted more than once.
+ * @memberof Errors
+ */
+class DeletedTwiceError extends GenericModelError {
+  constructor (tableName, _id) {
+    super('Tried to delete model twice in the same transaction',
+      tableName, _id)
+  }
+}
+
+/**
  * Thrown when a tx tries to write when it was marked read-only.
  * @memberof Errors
  */
@@ -124,6 +135,7 @@ class NotImplementedError extends Error {
 }
 
 module.exports = {
+  DeletedTwiceError,
   GenericModelError,
   InvalidFieldError,
   InvalidOptionsError,

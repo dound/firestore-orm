@@ -974,12 +974,11 @@ class TransactionDeleteTest extends QuickTransactionTest {
   }
 
   async testDoubleDeletion () {
-    // double-deletion is okay
     const id = uuidv4()
-    await db.Context.run({ retries: 0 }, async tx => {
+    await expect(db.Context.run({ retries: 0 }, async tx => {
       await tx.delete(TransactionExample.key({ id }))
       await tx.delete(TransactionExample.key({ id }))
-    })
+    })).rejects.toThrow('Tried to delete model twice')
   }
 }
 

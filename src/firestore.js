@@ -5,6 +5,7 @@ const {
   Context
 } = require('./context')
 const {
+  DeletedTwiceError,
   InvalidFieldError,
   InvalidOptionsError,
   InvalidParameterError,
@@ -46,6 +47,7 @@ function setup (firestoreDB) {
     firestoreDB,
 
     // Errors
+    DeletedTwiceError,
     InvalidFieldError,
     InvalidOptionsError,
     InvalidParameterError,

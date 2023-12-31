@@ -450,7 +450,8 @@ class Context {
         const path = key.docRef.path
         const trackedModelIdx = this.__trackedModelsMap[path]
         if (trackedModelIdx !== undefined) {
-          if (trackedModelIdx === null) {
+          const trackedModel = this.__trackedModelsList[trackedModelIdx]
+          if (trackedModel === null) {
             // already asked to delete it
             throw new DeletedTwiceError(key.Cls.tableName, key.encodedKey)
           }
