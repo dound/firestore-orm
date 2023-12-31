@@ -18,7 +18,6 @@ high-level abstractions to structure data and prevent race conditions.
     - [Pre-Commit Hook](#pre-commit-hook)
     - [Warning: Race Conditions](#warning-race-conditions)
     - [Warning: Side Effects](#warning-side-effects)
-    - [Per-request transaction](#per-request-transaction)
   - [Operations](#operations)
     - [Addressing Documents](#addressing-documents)
     - [Create](#create)
@@ -31,6 +30,7 @@ high-level abstractions to structure data and prevent race conditions.
   - [Performance](#performance)
     - [Blind Writes](#blind-writes)
     - [incrementBy()](#incrementby)
+    - [Locking](#locking)
 - [Niche Concepts](#niche-concepts)
   - [Key Encoding](#key-encoding)
   - [Nested Transactions are NOT Nested](#nested-transactions-are-not-nested)
@@ -38,7 +38,6 @@ high-level abstractions to structure data and prevent race conditions.
   - [Repeated Reads](#repeated-reads)
   - [Key Collection](#key-collection)
 - [Library Collaborator's Guide](#library-collaborators-guide)
-  - [AOL](#aol)
   - [Transactions](#transactions-1)
 - [Appendix](#appendix)
   - [Useful Links](#useful-links)
@@ -48,11 +47,13 @@ high-level abstractions to structure data and prevent race conditions.
 # Core Concepts
 Data is organized into Firestore Collections (similar to what's often called
 tables in other databases). Each contains Firestore Documents (similar to rows
-in other databases). Each document ("doc") is uniquely identified by a string
+in other databases). Each document ("doc") is uniquely identified by a
 [_Key_](#keys).
 
 ## Minimal Example
-Define a new collection like this, which uses the [Todea Schema library](https://github.com/pocketgems/schema) to enforce a schema:
+Define a new collection like this, using the
+[Todea Schema library](https://github.com/pocketgems/schema) to enforce a
+schema:
 ```javascript <!-- embed:./test/unit-test-doc.js:scope:Order -->
 class OrderWithNoPrice extends db.Model {
   static FIELDS = {
@@ -91,7 +92,7 @@ single field named `id` which has the format of a UUIDv4 string (e.g.,
 changed.
 
 You can override the default and define your key to be composed of one _or
-more_ fields with arbitrary
+more_ fields with an arbitrary
 [Todea schema](https://github.com/pocketgems/schema)s (`S`):
 ```javascript <!-- embed:./test/unit-test-doc.js:scope:RaceResult -->
 class RaceResult extends db.Model {
@@ -135,8 +136,8 @@ the same key.
 
 ### Fields
 Fields are pieces of data attached to a doc. They are defined similar to
-`KEY` -- fields can be composed of one _or more_ fields with arbitrary
-[Todea schema](https://github.com/pocketgems/schema)s (`S`) :
+`KEY` -- a doc can have one _or more_ fields with arbitrary
+[Todea schema](https://github.com/pocketgems/schema)s:
 ```javascript <!-- embed:./test/unit-test-doc.js:scope:ModelWithFields -->
 class ModelWithFieldsExample extends db.Model {
   static FIELDS = {
@@ -148,8 +149,8 @@ class ModelWithFieldsExample extends db.Model {
 ```
 
 * Field names are serialized and stored in the database.
-  Avoid having fields with long verbose names, specially for nested ones.
-* If you change the db schema, existing data isn't changed.
+  Avoid having fields with long verbose names, especially for repeated values.
+* If you change the schema, existing data isn't changed.
   That includes docs with now missing field names. [Schema Enforcement](#schema-enforcement)
 
 Fields can be configured to be optional, immutable and/or have default values:
@@ -158,8 +159,8 @@ Fields can be configured to be optional, immutable and/or have default values:
  * `readOnly()` - if a field is marked as read only, it cannot be changed once
    the doc has been created
  * `default()` - the default value for a field
-    * This value gets deep copied so you can safely use non-primitive type like
-      an object as a default value.
+    * This value gets deep copied so you can safely use non-primitive types
+      like objects as a default value.
     * The default value is assigned to a field when:
        * A doc is created and no value is specified for the value.
        * A doc is fetched and is is missing the specified field _AND_ the
@@ -207,14 +208,14 @@ class ComplexFieldsExample extends db.Model {
 ### Schema Enforcement
 A model's schema (i.e., the structure of its data) is enforced by this library
 — _NOT_ the underlying database! Firestore, like most NoSQL databases, is
-effectively schemaless (except for the key). This means each doc may
+effectively schemaless. This means each doc may
 theoretically contain completely different data. This normally won't be the
-case because `db.Model` enforces a consistent schema on docs in a collection.
+case because `db.Model` enforces a consistent schema on documents in a collection.
 
 However, it's important to understand that this schema is _only_ enforced by
 `db.Model` and not the underlying database. This means **changing the model
 does not change any underlying data** in the database. For example, if we make
-a previously optional field required, old docs which omitted the value will
+a previously optional field required, old documents which omitted the value will
 still be missing the value.
 
 The schema is checked as follows:
@@ -294,8 +295,7 @@ expect(order.totalPrice(0.1)).toBeCloseTo(440)
 ## Transactions
 A transaction is a function which contains logic and database operations. A
 transaction guarantees that all _database_ side effects (e.g., updating a
-doc) execute in an all-or-nothing manner, providing both
-[ACID](#acid-properties) properties.
+doc) execute in an all-or-nothing manner, providing [ACID](#acid-properties) properties.
 
 
 ### ACID Properties
@@ -353,7 +353,7 @@ await db.Context.run(async tx => {
 ```
 
 ### Pre-Commit Hook
-A model might need to automate logic before it is committed to store. For example, a `Ledger` model may want to update a `ver` field any time it is updated. Such logic can be achieved through the `Model.finalize` hook.
+A model might need to execute some logic before it is committed. For example, a `Ledger` model may want to update a `ver` field any time it is updated. Such logic can be achieved through the `Model.finalize` hook.
 
 ```javascript <!-- embed:./test/unit-test-transaction.js:scope:HookExample -->
 class HookExample extends db.Model {
@@ -374,7 +374,7 @@ class HookExample extends db.Model {
 ### Warning: Race Conditions
 Race conditions are still possible! If your context doesn't use a transaction,
 individual reads may not be consistent with one another. A transaction is used
-if your context is not read only or if using consistentReads (the default).
+if your context is not read only or if using consistent reads (the default).
 Consider a ski resort which records some stats about skiers and lifts:
 ```javascript
 class SkierStats extends db.Model {
@@ -403,7 +403,9 @@ async function liftRideTaken(resort, isNewSkier) {
 }
 ```
 
-However, if we try to read them we can't guarantee a consistent snapshot:
+However, if we try to read them individually from different transactions or
+without setting the consistent read option (the default) we can't guarantee a
+consistent snapshot.
 ```javascript
 const skierStats = await tx.get(SkierStats, resort)
 const liftStats = await tx.get(LiftStats, resort)
@@ -418,7 +420,8 @@ This sequence is possible:
   1. The request to read lift stats complete: `numLiftRides=1` _!!!_
   1. Our application code thinks there was one lift ride taken, but no skiers.
 
-To ensure this does not occur, use a transaction.
+To ensure this does not occur, use a transaction (readOnly=false) and/or stick
+with the default consistentReads=true.
 
 
 ### Warning: Side Effects
@@ -442,16 +445,11 @@ In this example, the HTTP request might be completed one or more times, even if
 the transaction never completes successfully!
 
 
-### Per-request transaction
-Each request handled by our
-[API Definition library](https://pocketgems.github.io/app/libs/api/index.html)
-is wrapped in a transaction.
-
-
 ## Operations
-_All_ databases operations occur in the scope of a transaction. We typically
-name the transaction object `tx` in code. This section discusses the operations
-supported by `tx`.
+_All_ databases operations occur in the scope of a transaction (unless you
+specifically disable it by setting readOnly=true _and_ consistentRead=false).
+We typically name the transaction object `tx` in code. This section discusses
+the operations supported by `tx`.
 
 
 ### Addressing Documents
@@ -468,7 +466,7 @@ Order.key(uuid4())
 ```
 
 The `db.Key` object produced by this `key()` method is used as the first
-argument to database operations:
+argument for retrieving data:
 ```javascript
 tx.get(Order.key(id))
 ```
@@ -497,7 +495,7 @@ tx.create(Order, { id, product: 'coffee', quantity: 1 })
 
 ### Read
 `tx.get()` **asynchronously** retrieves data from the database. Network traffic
-is generated to ask the database for the data as soon as the method is call,
+is generated to ask the database for the data as soon as the method is called,
 but other work can be done while waiting.
 ```javascript
 const orderPromise = tx.get(Order, id)
@@ -507,6 +505,9 @@ const order = await orderPromise // block until the data has been retrieved
 
 `tx.get()` accepts an additional options to configure its behavior:
   * `createIfMissing` - see [Create if Missing](#create-if-missing)
+
+Firestore transactions require all reads to have been completed before issuing
+write requests.
 
 
 #### Create if Missing
@@ -524,15 +525,15 @@ if (order.isNew) { // you can check if the doc already existed or not
 
 The `isNew` property is set when the model is instantiated (after receiving the
 database's response to our data request). When the transaction commits, it will
-ensure that the doc is still being created if `isNew=true` (i.e., the doc
+ensure that the doc will be created if `isNew=true` (i.e., the doc
 wasn't created by someone else in the meantime) or still exists if
 `isNew=false` (i.e., the doc hasn't been deleted in the meantime).
 
 
 #### Read Consistency
-Consistent reads (the default and only option) provide strong
-consistency. In theory, Firestore supports eventually consistent reads but
-these are not exposed in their NodeJS client library so we don't support them.
+Each individual get is strongly consistent (you'll get the latest data as of
+that moment). In transactions, all reads will be consistent with each other
+too.
 
 #### Batch Read
 It is also possible to call `tx.get()` with an array of keys in order to fetch
@@ -566,13 +567,13 @@ For improved performance, data can be updated without being read from database
 first. See details in [blind writes](#blind-writes).
 
 ### Delete
-docs can be deleted from the database via `tx.delete()`. The delete method
+Documents can be deleted from the database via `tx.delete()`. The delete method
 accepts models or keys as parameters. For example,
 `tx.delete(model1, key1, model2, ...keys, key2)`.
 
 For models that were read from server via `tx.get()`, if the model turns out to
 be missing on server when the transaction commits, an exception is thrown.
-Otherwise, deletion on missing docs will be treated as noop.
+Otherwise, deletion on missing docs will be treated as a no-op.
 
 ## Performance
 ### Blind Writes
@@ -676,12 +677,17 @@ async function bothAreJustAsFast(id) {
 Using `incrementBy()` on a field whose value is `undefined` is invalid and will
 throw an exception.
 
+### Locking
+
+By default, Firestore uses [pessimistic concurrency](https://cloud.google.com/datastore/docs/concepts/transactions#concurrency_modes). Review their documentation to decide which works best for your use case. Unit tests and the
+local emulator use the default pessimistic concurrency.
+
 
 # Niche Concepts
 
 ## Key Encoding
 Under the hood, a database key can only be a single attribute. We always store
-that attribute as a string. We compute this string's value by first sorting the
+that attribute as a string because Firestore only supports string keys (not integer keys, etc.). We compute this string's value by first sorting the
 names of the components of the key. Then we compute the string representation
 of each component's value (with `JSON.stringify()`, except for string values
 which don't need to be encoded like that). Finally, we concatenate these values
@@ -726,23 +732,16 @@ transaction is retried, the inner transaction _will be run additional times_.
 
 
 ## Collection Creation & Persistence
-When the localhost server runs, it generates `config/resources.yml` based on
-the models you've defined (make sure to export them from your service!). On
-localhost, the data persists until you shut down the service. If you add new
+On localhost, the data persists until you shut down the service. If you add new
 models or change a model (particularly its key structure), you will need to
-restart your service to incorporate the changes.
+restart your Firestore emulator to clear out the old data.
 
 Along the same lines, keep in mind that the localhost database is _not_ cleared
 in between test runs. Any data added to the localhost database will remain
-until the service is restarted. This can help you debug issues, but it also
+until the emulator is restarted. This can help you debug issues, but it also
 means you should not create docs with a fixed ID as part of a unit test (use
 `uuidv4()` to get a random ID value so it won't clash with a future run of the
 unit tests.)
-
-Whenever a service is deployed to test or prod, any collection which did not
-previously exist is created. _If a collection is removed, its data will still be
-retained._ It must be manually deleted if its data is no longer needed. This
-is a safety precaution to avoid data loss.
 
 Be careful about changing your models: remember that changing the model does
 _not_ change anything in the database. Be especially wary about changing the
@@ -831,26 +830,6 @@ const docs = await tx.get(keys)
 ```
 
 # Library Collaborator's Guide
-
-## AOL
-This library automates optimistic locking by tracking fields accessed and
-constructing expressions under the hood, thus entirely avoid hand crafting
-requests like above. Rules are as following:
-
-* For **ConditionExpression**
-    - If a model does not exists on server:
-        - Set expression to `'attribute_not_exists(id)'`
-    - Else
-        - For each field read or written:
-            - Append `field=oldValue`
-
-* For **UpdateExpression**
-    - For each field written:
-        - If `newValue === undefined`:
-            - Append `'field'` to _REMOVE_ section
-        - If `newValue !== undefined`:
-            - Append `'field=newValue'` to _SET_ section
-
 
 ## Transactions
 Our `Context` class:
