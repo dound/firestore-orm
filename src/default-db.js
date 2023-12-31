@@ -1,4 +1,4 @@
-// Convenient helper to setup dynamodb connection using environment variables.
+// Convenient helper to setup our db connection using environment variables.
 // The constructed db instance will be cached by NodeJS.
 import Firestore from '@google-cloud/firestore'
 

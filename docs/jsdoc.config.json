@@ -9,14 +9,7 @@
             "outputSourceFiles": true
         },
         "useCollapsibles": true,
-        "name": "DynamoDB User Guide",
-        "footerText": "Pocket Gems, Inc.",
-        "logo": {
-            "url": "https://pocketgems.com/wp-content/themes/pocketgems/assets/images/favicon/favicon-32x32.png",
-            "width": "22px",
-            "height": "22px",
-            "link": "https://github.com/pocketgems/dynamodb"
-        }
+        "name": "FirestoreDB User Guide"
     },
     "opts": {
         "encoding": "utf8",

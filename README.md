@@ -205,7 +205,7 @@ class ComplexFieldsExample extends db.Model {
 
 ### Schema Enforcement
 A model's schema (i.e., the structure of its data) is enforced by this library
-— _NOT_ the underlying database! DynamoDB, like most NoSQL databases, is
+— _NOT_ the underlying database! Firestore, like most NoSQL databases, is
 effectively schemaless (except for the key). This means each row may
 theoretically contain completely different data. This normally won't be the
 case because `db.Model` enforces a consistent schema on rows in a table.
@@ -855,30 +855,14 @@ requests like above. Rules are as following:
 
 
 ## Transactions
-Our `Context` class, combines AOL and DynamoDB's transactWrite with the
-following strategy:
+Our `Context` class:
 
-* Individual get operations are allowed within a transaction context.
 * Models read are tracked by the transaction context.
-* Models mutated are written to DB using one single transactWrite operation on
-  commit.
-* TransactWrite request is constructed using the following rules:
-    * For each readonly rows:
-        * Append ConditionExpressions generated using AOL
-    * For each read-write rows:
-        * Append UpdateExpression generated using AOL.
-        * Append ConditionExpressions generated using AOL
-* Context commits when the transaction context / scope is exited.
-* If a `retryable` error or `ConditionalCheckFailedException` or
-  `TransactionCanceledException` is thrown during transactWrite operation,
-  transaction will be retried.
-* If all retries failed, a `TransactionFailedError` will be thrown.
-
-When more than one row is accessed and/or updated, this library issues a
-`transactWriteItems` call to DynamoDB. For performance reasons, if exactly one
-row was accessed and updated, this library uses a non-transactional
-`writeItem` call to provide the same ACID properties a transactWrite could
-provide.
+* Models mutated are written to DB on commit
+* Context commits when the transaction context / scope is exited
+* If a `retryable` error is thrown during transactWrite operation,
+  the transaction will be retried.
+* If all retries fail, a `TransactionFailedError` will be thrown.
 
 
 # Appendix

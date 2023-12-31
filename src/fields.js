@@ -431,8 +431,7 @@ class NumberField extends __Field {
     return (
       // if there's no diff, we cannot use increment
       this.__diff !== undefined &&
-      // if the field didn't have an old value, we can't increment it (DynamoDB
-      // will throw an error if we try to do X=X+1 when X has no value)
+      // if the field didn't have an old value, we can't increment it
       this.__initialValue !== undefined &&
       // if we read the value, then it's not a blind increment
       !this.__readInitialValue)

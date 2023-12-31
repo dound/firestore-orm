@@ -285,8 +285,7 @@ class Context {
    *   get(Key|Data, params)
    *   get([Key|Data], params)
    *
-   * When only one items is fetched, DynamoDB's getItem API is called. Must use
-   * a Key when createIfMissing is not true, and Data otherwise.
+   * Must use a Key when createIfMissing is not true, and Data otherwise.
    *
    * When a list of items is fetched:
    *   Firestore getAll API is called.
