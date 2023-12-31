@@ -120,6 +120,25 @@ class SimpleExample extends db.Model {}
 SimpleExample.__doOneTimeModelPrep()
 
 class SimpleExampleTest extends BaseTest {
+  async testRegistration () {
+    class TmpExample extends db.Model {}
+    expect(!!TmpExample.__setupDone).toBe(false)
+    const registrator = {
+      done: false,
+      registerModel: async () => {
+        return new Promise(resolve => {
+          setTimeout(() => {
+            registrator.done = true
+            resolve()
+          }, 0)
+        })
+      }
+    }
+    await TmpExample.register(registrator)
+    expect(registrator.done).toBe(true)
+    expect(TmpExample.__setupDone).toBe(true)
+  }
+
   testNamingConvention () {
     expect(() => {
       class SomeModel extends db.Model {}
