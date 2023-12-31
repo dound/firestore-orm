@@ -203,7 +203,7 @@ class Model {
     for (const [fieldName, schema] of Object.entries(this.schema.objectSchemas)) {
       const isKey = partitionKeys.has(fieldName)
       const finalFieldOpts = __Field.__validateFieldOptions(
-        this.name, isKey, fieldName, schema)
+        this.tableName, isKey, fieldName, schema)
       this._attrs[fieldName] = finalFieldOpts
       if (isKey) {
         this.__KEY_COMPONENT_NAMES.add(fieldName)

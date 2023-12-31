@@ -608,8 +608,8 @@ class Context {
       }
       const before = model.getSnapshot({ initial: true, dbKeys: true })
       const after = model.getSnapshot({ initial: false, dbKeys: true })
-      const modelName = model.key ? model.key.Cls.name : model.constructor.name
-      const key = model.key ? model.key.encodedKey : model._id
+      const modelName = model.constructor.tableName
+      const key = model.__key.encodedKey
       allBefore.push({ [modelName]: { _id: key, data: before } })
       allAfter.push({ [modelName]: { _id: key, data: after } })
       const diff = detailedDiff(before, after)
