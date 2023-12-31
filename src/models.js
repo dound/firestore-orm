@@ -315,7 +315,7 @@ class Model {
     const data = {}
     for (const field of Object.values(this.__cached_attrs)) {
       if (!field.isKey) {
-        if (this.isNew || field.hasChangesToCommit(true)) {
+        if (field.hasChangesToCommit(true) || this.isNew) {
           const val = field.__valueForFirestoreWrite()
           if (val !== undefined) {
             data[field.name] = val
