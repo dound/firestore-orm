@@ -1,5 +1,5 @@
 # Simple workflow for deploying static content to GitHub Pages
-name: Deploy generated docs to Pages
+name: Deploy generated docs to GitHub Pages
 
 on:
   # Runs on pushes targeting the default branch
