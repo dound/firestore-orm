@@ -32,6 +32,6 @@ jobs:
       - name: 'Run unit tests'
         run: |
           sudo apt-get install -y google-cloud-cli-firestore-emulator
-          /scripts/start-local-db.sh > /dev/null 2> /dev/null &
+          ./scripts/start-local-db.sh > /dev/null 2> /dev/null &
           yarn test
         shell: bash
