@@ -1,2 +1,3 @@
 #!/bin/bash
-gcloud emulators firestore start
+firebase=./node_modules/firebase-tools/lib/bin/firebase.js
+$firebase setup:emulators:firestore
