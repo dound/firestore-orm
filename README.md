@@ -1,8 +1,8 @@
-# FirestoreDB Library <!-- omit in toc -->
+# Firestore ORM Library <!-- omit in toc -->
 This library is used to interact with the Firestore NoSQL database. It provides
 high-level abstractions to structure data and prevent race conditions.
 
-[![JSDoc](https://img.shields.io/badge/Documentation-JSDoc-green.svg?logo=githubpages)](https://dound.github.io/firestoredb)
+[![JSDoc](https://img.shields.io/badge/Documentation-JSDoc-green.svg?logo=githubpages)](https://dound.github.io/firestore-orm)
 
 - [Core Concepts](#core-concepts)
   - [Minimal Example](#minimal-example)

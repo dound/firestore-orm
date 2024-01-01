@@ -9,7 +9,7 @@
             "outputSourceFiles": true
         },
         "useCollapsibles": true,
-        "name": "FirestoreDB User Guide"
+        "name": "Firestore ORM Guide"
     },
     "opts": {
         "access": "protected,public,undefined",

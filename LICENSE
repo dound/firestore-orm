@@ -200,5 +200,5 @@
    See the License for the specific language governing permissions and
    limitations under the License.
 
-This FirestoreDB project was inspired by and forked from the excellent DynamoDB
-library here: https://github.com/pocketgems/dynamodb
+This Firestore ORM project was inspired by and forked from the excellent
+DynamoDB library here: https://github.com/pocketgems/dynamodb
