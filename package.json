@@ -12,7 +12,7 @@
     "restart-local-db": "./scripts/start-local-db.sh --force-recreate",
     "setup": "yarn && pip install -r requirements.txt",
     "start-local-db": "./scripts/start-local-db.sh",
-    "test": "yarn start-local-db; ./scripts/ci/coverage.sh"
+    "test": "./node_modules/jest/bin/jest.js --coverage --config=./jest.config.json"
   },
   "contributors": [
     "Yu Guan",
@@ -54,6 +54,7 @@
     "eslint-plugin-node": "^11.1.0",
     "eslint-plugin-promise": "^6.0.0",
     "eslint-plugin-standard": "^4.0.1",
+    "firebase-tools": "^13.0.2",
     "jest": "^26.4.2",
     "jsdoc": "3.6.4",
     "nodemon": "^2.0.20",
