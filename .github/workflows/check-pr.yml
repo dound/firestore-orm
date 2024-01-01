@@ -19,13 +19,20 @@ jobs:
         shell: bash
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - run: |
+      - name: 'Check lint and markdown links'
+        run: |
           yarn check-markdown-link
           yarn lint
-          echo '{"firestore": {}}' > ./firebase.json
-          echo 'yarn test' > ./test.sh
-          chmod u+x ./test.sh
-          firebase=./node_modules/firebase-tools/lib/bin/firebase.js
-          $firebase setup:emulators:firestore
-          $firebase emulators:exec --only firestore ./test.sh
+        shell: bash
+      - name: 'Set up Cloud SDK'
+        uses: 'google-github-actions/setup-gcloud@v2'
+        with:
+          version: '>= 458.0.0'
+          install_components: 'cloud-firestore-emulator'
+      - name: 'Run unit tests'
+        run: |
+          gcloud info
+          sudo apt-get install -y google-cloud-cli-firestore-emulator
+          /scripts/start-local-db.sh > /dev/null 2> /dev/null &
+          yarn test
         shell: bash
