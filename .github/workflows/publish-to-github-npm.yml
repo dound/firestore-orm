@@ -1,0 +1,26 @@
+name: Publish to GitHub Package Registry
+on:
+  push:
+    branches:
+      - main
+jobs:
+  publish:
+    if: github.repository == 'dound/firestore-orm'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v2
+        with:
+          node-version: '20.x'
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@dound'
+      - name: Publish
+        run: |
+          yarn install
+          npm publish
+        shell: bash
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
