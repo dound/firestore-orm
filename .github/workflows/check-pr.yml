@@ -24,16 +24,17 @@ jobs:
           yarn check-markdown-link
           yarn lint
         shell: bash
-      - uses: 'google-github-actions/auth@v2'
-        with:
-          project_id: 'test-project-not-real'
-      - name: 'Set up Cloud SDK'
-        uses: 'google-github-actions/setup-gcloud@v2'
-        with:
-          version: '>= 458.0.0'
-          install_components: 'cloud-firestore-emulator'
+      - name: 'Setup Firestore Emulator'
+        run: |
+          echo '{ "projects": { "default": "fake-for-testing-only" } }' > ./.firebaserc
+          echo '{ "firestore": {} }' > ./firebase.json
+          npm install -g firebase-tools
+          firebase setup:emulators:firestore
+        shell: bash
       - name: 'Run unit tests'
         run: |
-          ./scripts/start-local-db.sh > /dev/null 2> /dev/null &
-          yarn test
+          echo 'yarn test' > ./test.sh
+          chmod u+x ./test.sh
+          echo "process.env.FIRESTORE_EMULATOR_HOST = 'localhost:8080'" >> ./environment.js
+          firebase emulators:exec --only firestore ./test.sh
         shell: bash
