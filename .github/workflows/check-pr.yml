@@ -3,7 +3,7 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, edited]
 jobs:
-  ci:
+  check_pr:
     runs-on: ubuntu-latest
     permissions:
       contents: read
