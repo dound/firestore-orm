@@ -2,8 +2,6 @@
 This library is used to interact with the Firestore NoSQL database. It provides
 high-level abstractions to structure data and prevent race conditions.
 
-Generated from [GIT_HASH](https://github.com/dound/firestore-orm/tree/GIT_HASH).
-
 [![JSDoc](https://img.shields.io/badge/Documentation-JSDoc-green.svg?logo=githubpages)](https://dound.github.io/firestore-orm)
 
 - [Core Concepts](#core-concepts)

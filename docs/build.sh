@@ -10,5 +10,6 @@ rm -rf generated
 npx jsdoc --configure jsdoc.config.json `find ../src -name '*.js' -type f`
 
 gitHash=`git rev-parse HEAD`
-cat ./generated/index.html | sed -e "s/GIT_HASH/${gitHash}/g" > tmp
+newLine="Generated from <a href=\"$gitHash\">$gitHash<\\/a><\\/article>"
+cat ./generated/index.html | sed -e "s/[<][/]article[>]/$newLine/g" > tmp
 mv tmp ./generated/index.html
