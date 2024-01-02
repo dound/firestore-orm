@@ -1321,7 +1321,7 @@
 
 "@pocketgems/schema@^0.1.2":
   version "0.1.3"
-  resolved "https://npm.pkg.github.com/download/@pocketgems/schema/0.1.3/9986f8e5d882886d6a6b94cbe2b5c1bc8906bf71#9986f8e5d882886d6a6b94cbe2b5c1bc8906bf71"
+  resolved "https://registry.yarnpkg.com/@pocketgems/schema/-/schema-0.1.3.tgz#9986f8e5d882886d6a6b94cbe2b5c1bc8906bf71"
   integrity sha512-jdwGA+pZ0kQTIY1Zk1X5+9vmGI0cN0c7ZSSlUkZbQERCtgcYdzoaxmE+s3WbFWyAH0lziGaFzDy6JxvHf+ks9w==
   dependencies:
     ajv "^8.11.2"
@@ -1329,7 +1329,7 @@
 
 "@pocketgems/unit-test@^0.0.1":
   version "0.0.1"
-  resolved "https://npm.pkg.github.com/download/@pocketgems/unit-test/0.0.1/f8fe207f1ba22271a296eaffabff474f02d41354#f8fe207f1ba22271a296eaffabff474f02d41354"
+  resolved "https://registry.yarnpkg.com/@pocketgems/unit-test/-/unit-test-0.0.1.tgz#f8fe207f1ba22271a296eaffabff474f02d41354"
   integrity sha512-r/G/QxIfys/us6Acuxbr3fLutKGEU2KyFHDLlcj6IBDwosn9GxX5q8jql9yye4tSK73LUsCgue5zmLBMDI1EDw==
   dependencies:
     chalk "^4.0.0"
