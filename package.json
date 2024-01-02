@@ -1,5 +1,5 @@
 {
-  "name": "firestore-orm",
+  "name": "@dound/firestore-orm",
   "version": "0.0.1",
   "description": "Firestore ORM Library",
   "license": "Apache-2.0",
@@ -24,6 +24,9 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/dound/firestore-orm.git"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com/@dound"
   },
   "files": [
     "environment.js",

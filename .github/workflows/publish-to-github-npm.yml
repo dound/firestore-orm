@@ -19,7 +19,7 @@ jobs:
       - name: Publish
         run: |
           yarn install --frozen-lockfile
-          yarn npm publish
+          npm publish
         shell: bash
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
